@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.client.model.ItemManageEntry;
 import com.example.client.widget.OreRegistryEntryButtonWidget;
 import io.wispforest.owo.ui.component.Components;
@@ -34,7 +36,7 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 	private FlowLayout listLayout;
 
 	public TeleportItemManageScreen(TeleportAdminScreen parent, Set<String> disabledItemIds, String searchQuery) {
-		super(Component.translatable("screen.teleportmenu.admin.items.title"));
+		super(ClientI18n.tr("screen.teleportmenu.admin.items.title"));
 		this.parent = parent;
 		this.disabledItemIds = Set.copyOf(disabledItemIds);
 		this.allEntries = buildEntries();
@@ -54,7 +56,7 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(6);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.admin.items.title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.admin.items.title")).shadow(true));
 
 		TextBoxComponent searchBox = Components.textBox(Sizing.fixed(MAIN_BUTTON_WIDTH));
 		searchBox.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));
@@ -64,7 +66,7 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 			this.searchQuery = value == null ? "" : value;
 			this.refreshList();
 		});
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.admin.items.search")));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.admin.items.search")));
 		rootComponent.child(searchBox);
 
 		this.listLayout = Containers.verticalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.content());
@@ -77,12 +79,12 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 		itemList.surface(Surface.BLANK);
 		rootComponent.child(itemList);
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
 	}
 
 	private void refreshList() {
@@ -93,7 +95,7 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 		this.listLayout.clearChildren();
 		List<ItemManageEntry> entries = filteredEntries(this.searchQuery);
 		if (entries.isEmpty()) {
-			this.listLayout.child(Components.label(Component.translatable("screen.teleportmenu.admin.items.empty")));
+			this.listLayout.child(Components.label(ClientI18n.tr("screen.teleportmenu.admin.items.empty")));
 			return;
 		}
 
@@ -140,7 +142,7 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 				continue;
 			}
 			ItemStack icon = new ItemStack(item);
-			entries.add(new ItemManageEntry(itemId, icon.getHoverName().getString(), "物品", itemId, icon));
+			entries.add(new ItemManageEntry(itemId, icon.getHoverName().getString(), "Item", itemId, icon));
 		}
 
 		for (Block block : BuiltInRegistries.BLOCK) {
@@ -149,7 +151,7 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 			String targetId = blockItem != Items.AIR ? BuiltInRegistries.ITEM.getKey(blockItem).toString() : "";
 			ItemStack icon = blockItem != Items.AIR ? new ItemStack(blockItem) : new ItemStack(Items.GRASS_BLOCK);
 			String displayName = blockItem != Items.AIR ? icon.getHoverName().getString() : block.getName().getString();
-			entries.add(new ItemManageEntry(blockId, displayName, "方块", targetId, icon));
+			entries.add(new ItemManageEntry(blockId, displayName, "Block", targetId, icon));
 		}
 
 		entries.sort(Comparator.comparing(ItemManageEntry::registryId));

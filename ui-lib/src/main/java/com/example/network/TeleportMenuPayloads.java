@@ -477,6 +477,371 @@ public final class TeleportMenuPayloads {
 		}
 	}
 
+	public record EconomyAdminActionPayload(UUID targetId, String action, double amount) implements CustomPacketPayload {
+		public static final Type<EconomyAdminActionPayload> TYPE = new Type<>(id("economy_admin_action"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, EconomyAdminActionPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(EconomyAdminActionPayload::write, EconomyAdminActionPayload::new);
+
+		public EconomyAdminActionPayload {
+			action = action == null ? "" : action;
+		}
+
+		private EconomyAdminActionPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(32), buf.readDouble());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.targetId);
+			buf.writeUtf(this.action, 32);
+			buf.writeDouble(this.amount);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record EconomyLeaderboardEntry(UUID playerId, String name, double balance, String formattedBalance) {
+		public EconomyLeaderboardEntry {
+			name = name == null ? "" : name;
+			formattedBalance = formattedBalance == null ? "0" : formattedBalance;
+		}
+	}
+
+	public record ShopGoodTarget(String itemId, String name, String iconItemId, int stock, double price) {
+		public ShopGoodTarget {
+			itemId = itemId == null ? "" : itemId;
+			name = name == null ? "" : name;
+			iconItemId = iconItemId == null ? "minecraft:chest" : iconItemId;
+		}
+	}
+
+	public record ShopTarget(
+		UUID id,
+		UUID ownerId,
+		String ownerName,
+		String name,
+		String iconItemId,
+		List<ShopGoodTarget> goods
+	) {
+		public ShopTarget {
+			ownerName = ownerName == null ? "" : ownerName;
+			name = name == null ? "" : name;
+			iconItemId = iconItemId == null ? "minecraft:chest" : iconItemId;
+			goods = List.copyOf(goods);
+		}
+	}
+
+	public record EconomyStatePayload(
+		List<EconomyLeaderboardEntry> leaderboard,
+		List<ShopTarget> shops,
+		int ownShopCount,
+		int ownShopLimit
+	) implements CustomPacketPayload {
+		public static final Type<EconomyStatePayload> TYPE = new Type<>(id("economy_state"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, EconomyStatePayload> STREAM_CODEC =
+			CustomPacketPayload.codec(EconomyStatePayload::write, EconomyStatePayload::new);
+
+		public EconomyStatePayload {
+			leaderboard = List.copyOf(leaderboard);
+			shops = List.copyOf(shops);
+		}
+
+		private EconomyStatePayload(RegistryFriendlyByteBuf buf) {
+			this(readLeaderboard(buf), readShops(buf), buf.readVarInt(), buf.readVarInt());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.leaderboard.size());
+			for (EconomyLeaderboardEntry entry : this.leaderboard) {
+				buf.writeUUID(entry.playerId());
+				buf.writeUtf(entry.name(), 64);
+				buf.writeDouble(entry.balance());
+				buf.writeUtf(entry.formattedBalance(), 64);
+			}
+
+			buf.writeVarInt(this.shops.size());
+			for (ShopTarget shop : this.shops) {
+				buf.writeUUID(shop.id());
+				buf.writeUUID(shop.ownerId());
+				buf.writeUtf(shop.ownerName(), 64);
+				buf.writeUtf(shop.name(), 64);
+				buf.writeUtf(shop.iconItemId(), 128);
+				buf.writeVarInt(shop.goods().size());
+				for (ShopGoodTarget good : shop.goods()) {
+					buf.writeUtf(good.itemId(), 128);
+					buf.writeUtf(good.name(), 64);
+					buf.writeUtf(good.iconItemId(), 128);
+					buf.writeVarInt(good.stock());
+					buf.writeDouble(good.price());
+				}
+			}
+
+			buf.writeVarInt(this.ownShopCount);
+			buf.writeVarInt(this.ownShopLimit);
+		}
+
+		private static List<EconomyLeaderboardEntry> readLeaderboard(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<EconomyLeaderboardEntry> entries = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				entries.add(new EconomyLeaderboardEntry(buf.readUUID(), buf.readUtf(64), buf.readDouble(), buf.readUtf(64)));
+			}
+			return entries;
+		}
+
+		private static List<ShopTarget> readShops(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<ShopTarget> shops = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				UUID shopId = buf.readUUID();
+				UUID ownerId = buf.readUUID();
+				String ownerName = buf.readUtf(64);
+				String name = buf.readUtf(64);
+				String icon = buf.readUtf(128);
+				int goodsSize = buf.readVarInt();
+				List<ShopGoodTarget> goods = new ArrayList<>(goodsSize);
+				for (int j = 0; j < goodsSize; j++) {
+					goods.add(new ShopGoodTarget(
+						buf.readUtf(128),
+						buf.readUtf(64),
+						buf.readUtf(128),
+						buf.readVarInt(),
+						buf.readDouble()
+					));
+				}
+				shops.add(new ShopTarget(shopId, ownerId, ownerName, name, icon, goods));
+			}
+			return shops;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record CreateShopRequestPayload(String name) implements CustomPacketPayload {
+		public static final Type<CreateShopRequestPayload> TYPE = new Type<>(id("create_shop_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, CreateShopRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(CreateShopRequestPayload::write, CreateShopRequestPayload::new);
+
+		public CreateShopRequestPayload {
+			name = name == null ? "" : name;
+		}
+
+		private CreateShopRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUtf(64));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUtf(this.name, 64);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record ExpandShopLimitRequestPayload() implements CustomPacketPayload {
+		public static final Type<ExpandShopLimitRequestPayload> TYPE = new Type<>(id("expand_shop_limit_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, ExpandShopLimitRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(ExpandShopLimitRequestPayload::write, ExpandShopLimitRequestPayload::new);
+
+		private ExpandShopLimitRequestPayload(RegistryFriendlyByteBuf buf) {
+			this();
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record DeleteShopRequestPayload(UUID shopId) implements CustomPacketPayload {
+		public static final Type<DeleteShopRequestPayload> TYPE = new Type<>(id("delete_shop_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, DeleteShopRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(DeleteShopRequestPayload::write, DeleteShopRequestPayload::new);
+
+		private DeleteShopRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.shopId);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record RenameShopRequestPayload(UUID shopId, String name) implements CustomPacketPayload {
+		public static final Type<RenameShopRequestPayload> TYPE = new Type<>(id("rename_shop_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, RenameShopRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(RenameShopRequestPayload::write, RenameShopRequestPayload::new);
+
+		public RenameShopRequestPayload {
+			name = name == null ? "" : name;
+		}
+
+		private RenameShopRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(64));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.shopId);
+			buf.writeUtf(this.name, 64);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record SetShopIconRequestPayload(UUID shopId, String iconItemId) implements CustomPacketPayload {
+		public static final Type<SetShopIconRequestPayload> TYPE = new Type<>(id("set_shop_icon_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, SetShopIconRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(SetShopIconRequestPayload::write, SetShopIconRequestPayload::new);
+
+		public SetShopIconRequestPayload {
+			iconItemId = iconItemId == null ? "" : iconItemId;
+		}
+
+		private SetShopIconRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(128));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.shopId);
+			buf.writeUtf(this.iconItemId, 128);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record AddShopGoodRequestPayload(UUID shopId, String itemId, int stock, double price) implements CustomPacketPayload {
+		public static final Type<AddShopGoodRequestPayload> TYPE = new Type<>(id("add_shop_good_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, AddShopGoodRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(AddShopGoodRequestPayload::write, AddShopGoodRequestPayload::new);
+
+		public AddShopGoodRequestPayload {
+			itemId = itemId == null ? "" : itemId;
+		}
+
+		private AddShopGoodRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(128), buf.readVarInt(), buf.readDouble());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.shopId);
+			buf.writeUtf(this.itemId, 128);
+			buf.writeVarInt(this.stock);
+			buf.writeDouble(this.price);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record BuyShopGoodRequestPayload(UUID shopId, String itemId, int amount) implements CustomPacketPayload {
+		public static final Type<BuyShopGoodRequestPayload> TYPE = new Type<>(id("buy_shop_good_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, BuyShopGoodRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(BuyShopGoodRequestPayload::write, BuyShopGoodRequestPayload::new);
+
+		public BuyShopGoodRequestPayload {
+			itemId = itemId == null ? "" : itemId;
+		}
+
+		private BuyShopGoodRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(128), buf.readVarInt());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.shopId);
+			buf.writeUtf(this.itemId, 128);
+			buf.writeVarInt(this.amount);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record LanguagePack(String languageCode, List<LangEntry> entries) {
+		public LanguagePack {
+			languageCode = languageCode == null ? "zh_cn" : languageCode;
+			entries = List.copyOf(entries);
+		}
+	}
+
+	public record LangEntry(String key, String value) {
+		public LangEntry {
+			key = key == null ? "" : key;
+			value = value == null ? "" : value;
+		}
+	}
+
+	public record LocalizationSyncPayload(List<LanguagePack> packs, long version) implements CustomPacketPayload {
+		public static final Type<LocalizationSyncPayload> TYPE = new Type<>(id("localization_sync"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, LocalizationSyncPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(LocalizationSyncPayload::write, LocalizationSyncPayload::new);
+
+		public LocalizationSyncPayload {
+			packs = List.copyOf(packs);
+		}
+
+		private LocalizationSyncPayload(RegistryFriendlyByteBuf buf) {
+			this(readPacks(buf), buf.readVarLong());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.packs.size());
+			for (LanguagePack pack : this.packs) {
+				buf.writeUtf(pack.languageCode(), 16);
+				buf.writeVarInt(pack.entries().size());
+				for (LangEntry entry : pack.entries()) {
+					buf.writeUtf(entry.key(), 200);
+					buf.writeUtf(entry.value(), 400);
+				}
+			}
+			buf.writeVarLong(this.version);
+		}
+
+		private static List<LanguagePack> readPacks(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<LanguagePack> packs = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				String languageCode = buf.readUtf(16);
+				int entriesSize = buf.readVarInt();
+				List<LangEntry> entries = new ArrayList<>(entriesSize);
+				for (int j = 0; j < entriesSize; j++) {
+					entries.add(new LangEntry(buf.readUtf(200), buf.readUtf(400)));
+				}
+				packs.add(new LanguagePack(languageCode, entries));
+			}
+			return packs;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
 	public record HomeListPayload(List<HomeTarget> homes) implements CustomPacketPayload {
 		public static final Type<HomeListPayload> TYPE = new Type<>(id("home_list"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, HomeListPayload> STREAM_CODEC =

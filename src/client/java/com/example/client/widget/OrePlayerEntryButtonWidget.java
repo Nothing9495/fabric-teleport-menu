@@ -1,5 +1,7 @@
 package com.example.client.widget;
 
+import com.example.client.i18n.ClientI18n;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
@@ -40,8 +42,8 @@ public class OrePlayerEntryButtonWidget extends AbstractOreButtonWidget {
 
 		int latency = playerInfo != null ? playerInfo.getLatency() : -1;
 		Component subtitle = latency >= 0
-			? Component.translatable("screen.teleportmenu.players.ping", latency)
-			: Component.translatable("screen.teleportmenu.players.ping_unknown");
+			? ClientI18n.tr("screen.teleportmenu.players.ping", latency)
+			: ClientI18n.tr("screen.teleportmenu.players.ping_unknown");
 
 		int avatarSize = 24;
 		int avatarX = x + 6;

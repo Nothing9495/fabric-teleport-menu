@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.client.widget.OreToggleSliderWidget;
 import com.example.client.widget.OreSmallActionButtonWidget;
 import com.example.network.TeleportMenuPayloads;
@@ -24,7 +26,7 @@ public class TeleportTerritoryManageScreen extends BaseTeleportScreen {
 	private final TeleportTerritoryScreen parent;
 
 	public TeleportTerritoryManageScreen(TeleportMenuPayloads.TerritoryTarget territory, List<TeleportMenuPayloads.PlayerTarget> players, TeleportTerritoryScreen parent) {
-		super(Component.translatable("screen.teleportmenu.territories.manage_title"));
+		super(ClientI18n.tr("screen.teleportmenu.territories.manage_title"));
 		this.territory = territory;
 		this.players = List.copyOf(players);
 		this.parent = parent;
@@ -35,22 +37,22 @@ public class TeleportTerritoryManageScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(6);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.territories.manage_title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.manage_title")).shadow(true));
 		rootComponent.child(Components.label(Component.literal(this.territory.name())));
 
-		rootComponent.child(permissionRow(Component.translatable("screen.teleportmenu.territories.permission.build_break"), this.territory.buildBreakAllowed(), "build_break"));
-		rootComponent.child(permissionRow(Component.translatable("screen.teleportmenu.territories.permission.container"), this.territory.containerAllowed(), "container"));
-		rootComponent.child(permissionRow(Component.translatable("screen.teleportmenu.territories.permission.interact"), this.territory.interactAllowed(), "interact"));
-		rootComponent.child(permissionRow(Component.translatable("screen.teleportmenu.territories.permission.damage_entities"), this.territory.damageEntitiesAllowed(), "damage_entities"));
-		rootComponent.child(permissionRow(Component.translatable("screen.teleportmenu.territories.permission.block_use"), this.territory.blockUseAllowed(), "block_use"));
+		rootComponent.child(permissionRow(ClientI18n.tr("screen.teleportmenu.territories.permission.build_break"), this.territory.buildBreakAllowed(), "build_break"));
+		rootComponent.child(permissionRow(ClientI18n.tr("screen.teleportmenu.territories.permission.container"), this.territory.containerAllowed(), "container"));
+		rootComponent.child(permissionRow(ClientI18n.tr("screen.teleportmenu.territories.permission.interact"), this.territory.interactAllowed(), "interact"));
+		rootComponent.child(permissionRow(ClientI18n.tr("screen.teleportmenu.territories.permission.damage_entities"), this.territory.damageEntitiesAllowed(), "damage_entities"));
+		rootComponent.child(permissionRow(ClientI18n.tr("screen.teleportmenu.territories.permission.block_use"), this.territory.blockUseAllowed(), "block_use"));
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.territories.whitelist"), new ItemStack(Items.WRITABLE_BOOK), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.whitelist"), new ItemStack(Items.WRITABLE_BOOK), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportTerritoryWhitelistScreen(this.territory, this.players, this));
 			}
 		}));
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

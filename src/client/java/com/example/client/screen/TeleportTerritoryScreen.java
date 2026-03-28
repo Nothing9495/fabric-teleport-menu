@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.client.widget.OreHomeEntryButtonWidget;
 import com.example.client.widget.OreSmallActionButtonWidget;
 import com.example.network.TeleportMenuPayloads;
@@ -27,7 +29,7 @@ public class TeleportTerritoryScreen extends BaseTeleportScreen {
 	private final TeleportMainScreen mainScreen;
 
 	public TeleportTerritoryScreen(List<TeleportMenuPayloads.TerritoryTarget> territories, List<TeleportMenuPayloads.PlayerTarget> players, TeleportMainScreen mainScreen) {
-		super(Component.translatable("screen.teleportmenu.territories.title"));
+		super(ClientI18n.tr("screen.teleportmenu.territories.title"));
 		this.territories = List.copyOf(territories);
 		this.players = List.copyOf(players);
 		this.mainScreen = mainScreen;
@@ -42,13 +44,13 @@ public class TeleportTerritoryScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(8);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.territories.title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.title")).shadow(true));
 
 		FlowLayout listLayout = Containers.verticalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.content());
 		listLayout.gap(3);
 
 		if (this.territories.isEmpty()) {
-			listLayout.child(Components.label(Component.translatable("screen.teleportmenu.territories.empty")));
+			listLayout.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.empty")));
 		} else {
 			for (TeleportMenuPayloads.TerritoryTarget territory : this.territories) {
 				FlowLayout row = Containers.horizontalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(PLAYER_ENTRY_HEIGHT));
@@ -74,7 +76,7 @@ public class TeleportTerritoryScreen extends BaseTeleportScreen {
 				OreSmallActionButtonWidget moreWidget = new OreSmallActionButtonWidget(
 					MORE_BUTTON_WIDTH,
 					PLAYER_ENTRY_HEIGHT,
-					Component.translatable("screen.teleportmenu.homes.more"),
+					ClientI18n.tr("screen.teleportmenu.homes.more"),
 					button -> {
 						if (this.minecraft != null) {
 							this.minecraft.setScreen(new TeleportTerritoryManageScreen(territory, this.players, this));
@@ -96,7 +98,7 @@ public class TeleportTerritoryScreen extends BaseTeleportScreen {
 		territoryList.surface(Surface.BLANK);
 
 		rootComponent.child(territoryList);
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.territories.create"), new ItemStack(Items.LIME_CONCRETE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.create"), new ItemStack(Items.LIME_CONCRETE), () -> {
 			Minecraft client = this.minecraft;
 			if (client == null) {
 				return;
@@ -104,14 +106,14 @@ public class TeleportTerritoryScreen extends BaseTeleportScreen {
 
 			client.setScreen(null);
 			if (client.player != null) {
-				client.player.sendSystemMessage(Component.translatable("message.teleportmenu.territory_create_guide"));
+				client.player.sendSystemMessage(ClientI18n.tr("message.teleportmenu.territory_create_guide"));
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.mainScreen);
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
 	}
 }

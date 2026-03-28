@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -16,7 +18,7 @@ public class TeleportHomeManageScreen extends BaseTeleportScreen {
 	private String renameInput;
 
 	public TeleportHomeManageScreen(TeleportMenuPayloads.HomeTarget home, TeleportHomeScreen parent) {
-		super(Component.translatable("screen.teleportmenu.homes.manage_title"));
+		super(ClientI18n.tr("screen.teleportmenu.homes.manage_title"));
 		this.home = home;
 		this.parent = parent;
 		this.renameInput = home.name();
@@ -31,10 +33,10 @@ public class TeleportHomeManageScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(6);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.manage_title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.manage_title")).shadow(true));
 		rootComponent.child(Components.label(Component.literal(this.home.name())));
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.current_pos", this.home.x(), this.home.y(), this.home.z())));
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.rename_prompt")));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.current_pos", this.home.x(), this.home.y(), this.home.z())));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.rename_prompt")));
 
 		TextBoxComponent textBox = Components.textBox(Sizing.fixed(MAIN_BUTTON_WIDTH));
 		textBox.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));
@@ -43,11 +45,11 @@ public class TeleportHomeManageScreen extends BaseTeleportScreen {
 		textBox.onChanged().subscribe(value -> this.renameInput = value);
 		rootComponent.child(textBox);
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.homes.rename"), new ItemStack(Items.NAME_TAG), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.rename"), new ItemStack(Items.NAME_TAG), () -> {
 			String newName = this.renameInput.trim();
 			if (newName.isEmpty()) {
 				if (this.minecraft != null && this.minecraft.player != null) {
-					this.minecraft.player.sendSystemMessage(Component.translatable("message.teleportmenu.home_name_empty"));
+					this.minecraft.player.sendSystemMessage(ClientI18n.tr("message.teleportmenu.home_name_empty"));
 				}
 				return;
 			}
@@ -58,13 +60,13 @@ public class TeleportHomeManageScreen extends BaseTeleportScreen {
 			}
 		}));
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.homes.delete"), new ItemStack(Items.LAVA_BUCKET), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete"), new ItemStack(Items.LAVA_BUCKET), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportHomeDeleteConfirmScreen(this.home, this));
 			}
 		}));
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

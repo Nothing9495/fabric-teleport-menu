@@ -40,9 +40,6 @@ processResources {
 		expand "version": inputs.properties.version
 	}
 
-	from("${rootDir}/src/main/resources/assets/teleportmenu/lang") {
-		into "assets/teleportmenu/lang"
-	}
 	from("${rootDir}/src/main/resources/assets/teleportmenu/icon.png") {
 		into "assets/teleportmenu"
 	}

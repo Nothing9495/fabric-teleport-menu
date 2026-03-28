@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.client.widget.OreHomeEntryButtonWidget;
 import com.example.client.widget.OreSmallActionButtonWidget;
 import com.example.network.TeleportMenuPayloads;
@@ -25,7 +27,7 @@ public class TeleportHomeScreen extends BaseTeleportScreen {
 	private final TeleportMainScreen mainScreen;
 
 	public TeleportHomeScreen(List<TeleportMenuPayloads.HomeTarget> homes, TeleportMainScreen mainScreen) {
-		super(Component.translatable("screen.teleportmenu.homes.title"));
+		super(ClientI18n.tr("screen.teleportmenu.homes.title"));
 		this.homes = List.copyOf(homes);
 		this.mainScreen = mainScreen;
 	}
@@ -39,13 +41,13 @@ public class TeleportHomeScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(8);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.title")).shadow(true));
 
 		FlowLayout listLayout = Containers.verticalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.content());
 		listLayout.gap(3);
 
 		if (this.homes.isEmpty()) {
-			listLayout.child(Components.label(Component.translatable("screen.teleportmenu.homes.empty")));
+			listLayout.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.empty")));
 		} else {
 			for (TeleportMenuPayloads.HomeTarget home : this.homes) {
 				FlowLayout row = Containers.horizontalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(PLAYER_ENTRY_HEIGHT));
@@ -72,7 +74,7 @@ public class TeleportHomeScreen extends BaseTeleportScreen {
 				OreSmallActionButtonWidget moreWidget = new OreSmallActionButtonWidget(
 					MORE_BUTTON_WIDTH,
 					PLAYER_ENTRY_HEIGHT,
-					Component.translatable("screen.teleportmenu.homes.more"),
+					ClientI18n.tr("screen.teleportmenu.homes.more"),
 					button -> {
 						if (this.minecraft != null) {
 							this.minecraft.setScreen(new TeleportHomeManageScreen(home, this));
@@ -94,16 +96,16 @@ public class TeleportHomeScreen extends BaseTeleportScreen {
 		homeList.surface(Surface.BLANK);
 
 		rootComponent.child(homeList);
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.homes.create"), new ItemStack(Items.EMERALD), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.create"), new ItemStack(Items.EMERALD), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportHomeCreateScreen(this));
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.mainScreen);
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
 	}
 }

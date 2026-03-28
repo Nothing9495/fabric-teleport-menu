@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -21,7 +23,7 @@ public class TeleportTerritoryCreateScreen extends BaseTeleportScreen {
 	private String inputName = "";
 
 	public TeleportTerritoryCreateScreen(TeleportMainScreen mainScreen, int ax, int ay, int az, int bx, int by, int bz) {
-		super(Component.translatable("screen.teleportmenu.territories.create_title"));
+		super(ClientI18n.tr("screen.teleportmenu.territories.create_title"));
 		this.mainScreen = mainScreen;
 		this.ax = ax;
 		this.ay = ay;
@@ -36,9 +38,9 @@ public class TeleportTerritoryCreateScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(6);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.territories.create_title")).shadow(true));
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.territories.range", this.ax, this.ay, this.az, this.bx, this.by, this.bz)));
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.territories.input_prompt")));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.create_title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.range", this.ax, this.ay, this.az, this.bx, this.by, this.bz)));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.input_prompt")));
 
 		TextBoxComponent textBox = Components.textBox(Sizing.fixed(MAIN_BUTTON_WIDTH));
 		textBox.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));
@@ -46,11 +48,11 @@ public class TeleportTerritoryCreateScreen extends BaseTeleportScreen {
 		textBox.onChanged().subscribe(value -> this.inputName = value);
 		rootComponent.child(textBox);
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.territories.confirm_create"), new ItemStack(Items.LIME_CONCRETE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.confirm_create"), new ItemStack(Items.LIME_CONCRETE), () -> {
 			String name = this.inputName.trim();
 			if (name.isEmpty()) {
 				if (this.minecraft != null && this.minecraft.player != null) {
-					this.minecraft.player.sendSystemMessage(Component.translatable("message.teleportmenu.territory_name_empty"));
+					this.minecraft.player.sendSystemMessage(ClientI18n.tr("message.teleportmenu.territory_name_empty"));
 				}
 				return;
 			}
@@ -59,7 +61,7 @@ public class TeleportTerritoryCreateScreen extends BaseTeleportScreen {
 			this.onClose();
 		}));
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.territories.cancel_create"), new ItemStack(Items.BARRIER), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.cancel_create"), new ItemStack(Items.BARRIER), () -> {
 			ClientPlayNetworking.send(new TeleportMenuPayloads.CancelTerritoryCreatePayload());
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.mainScreen);

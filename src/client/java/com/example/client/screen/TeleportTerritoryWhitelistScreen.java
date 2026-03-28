@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.client.widget.OrePlayerEntryButtonWidget;
 import com.example.client.widget.OreToggleSliderWidget;
 import com.example.network.TeleportMenuPayloads;
@@ -31,7 +33,7 @@ public class TeleportTerritoryWhitelistScreen extends BaseTeleportScreen {
 	private final TeleportTerritoryManageScreen parent;
 
 	public TeleportTerritoryWhitelistScreen(TeleportMenuPayloads.TerritoryTarget territory, List<TeleportMenuPayloads.PlayerTarget> players, TeleportTerritoryManageScreen parent) {
-		super(Component.translatable("screen.teleportmenu.territories.whitelist"));
+		super(ClientI18n.tr("screen.teleportmenu.territories.whitelist"));
 		this.territory = territory;
 		this.players = List.copyOf(players);
 		this.parent = parent;
@@ -42,13 +44,13 @@ public class TeleportTerritoryWhitelistScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(8);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.territories.whitelist")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.whitelist")).shadow(true));
 
 		FlowLayout listLayout = Containers.verticalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.content());
 		listLayout.gap(3);
 
 		if (this.players.isEmpty()) {
-			listLayout.child(Components.label(Component.translatable("screen.teleportmenu.territories.whitelist.empty")));
+			listLayout.child(Components.label(ClientI18n.tr("screen.teleportmenu.territories.whitelist.empty")));
 		} else {
 			for (TeleportMenuPayloads.PlayerTarget player : this.players) {
 				FlowLayout row = Containers.horizontalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(PLAYER_ENTRY_HEIGHT));
@@ -88,7 +90,7 @@ public class TeleportTerritoryWhitelistScreen extends BaseTeleportScreen {
 		whitelistList.surface(Surface.BLANK);
 
 		rootComponent.child(whitelistList);
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.territories.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

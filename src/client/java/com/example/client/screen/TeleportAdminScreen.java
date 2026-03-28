@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import net.minecraft.network.chat.Component;
@@ -13,7 +15,7 @@ public class TeleportAdminScreen extends BaseTeleportScreen {
 	private final Set<String> disabledItemIds;
 
 	public TeleportAdminScreen(TeleportMainScreen mainScreen, Set<String> disabledItemIds) {
-		super(Component.translatable("screen.teleportmenu.admin.title"));
+		super(ClientI18n.tr("screen.teleportmenu.admin.title"));
 		this.mainScreen = mainScreen;
 		this.disabledItemIds = Set.copyOf(disabledItemIds);
 	}
@@ -25,18 +27,23 @@ public class TeleportAdminScreen extends BaseTeleportScreen {
 	@Override
 	protected void build(FlowLayout rootComponent) {
 		this.configureRoot(rootComponent);
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.admin.title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.admin.title")).shadow(true));
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.admin.item_manage"), new ItemStack(Items.CHEST), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.item_manage"), new ItemStack(Items.CHEST), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportItemManageScreen(this, this.disabledItemIds, ""));
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy"), new ItemStack(Items.GOLD_INGOT), () -> {
+			if (this.minecraft != null) {
+				this.minecraft.setScreen(new TeleportEconomyManageScreen(this, this.mainScreen.targets()));
+			}
+		}));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.mainScreen);
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
 	}
 }

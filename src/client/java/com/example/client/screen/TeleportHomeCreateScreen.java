@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -20,7 +22,7 @@ public class TeleportHomeCreateScreen extends BaseTeleportScreen {
 	private String inputName = "";
 
 	public TeleportHomeCreateScreen(TeleportHomeScreen parent) {
-		super(Component.translatable("screen.teleportmenu.homes.create"));
+		super(ClientI18n.tr("screen.teleportmenu.homes.create"));
 		this.parent = parent;
 
 		BlockPos pos = currentPlayerPos();
@@ -38,9 +40,9 @@ public class TeleportHomeCreateScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(6);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.create")).shadow(true));
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.current_pos", this.x, this.y, this.z)));
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.input_prompt")));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.create")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.current_pos", this.x, this.y, this.z)));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.input_prompt")));
 
 		TextBoxComponent textBox = Components.textBox(Sizing.fixed(MAIN_BUTTON_WIDTH));
 		textBox.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));
@@ -48,11 +50,11 @@ public class TeleportHomeCreateScreen extends BaseTeleportScreen {
 		textBox.onChanged().subscribe(value -> this.inputName = value);
 		rootComponent.child(textBox);
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.homes.confirm_create"), new ItemStack(Items.LIME_CONCRETE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.confirm_create"), new ItemStack(Items.LIME_CONCRETE), () -> {
 			String name = this.inputName.trim();
 			if (name.isEmpty()) {
 				if (this.minecraft != null && this.minecraft.player != null) {
-					this.minecraft.player.sendSystemMessage(Component.translatable("message.teleportmenu.home_name_empty"));
+					this.minecraft.player.sendSystemMessage(ClientI18n.tr("message.teleportmenu.home_name_empty"));
 				}
 				return;
 			}
@@ -62,7 +64,7 @@ public class TeleportHomeCreateScreen extends BaseTeleportScreen {
 				this.minecraft.setScreen(this.parent);
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

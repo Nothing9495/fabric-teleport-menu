@@ -1,5 +1,7 @@
 package com.example.client.screen;
 
+import com.example.client.i18n.ClientI18n;
+
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -13,7 +15,7 @@ public class TeleportHomeDeleteConfirmScreen extends BaseTeleportScreen {
 	private final TeleportHomeManageScreen parent;
 
 	public TeleportHomeDeleteConfirmScreen(TeleportMenuPayloads.HomeTarget home, TeleportHomeManageScreen parent) {
-		super(Component.translatable("screen.teleportmenu.homes.delete_confirm_title"));
+		super(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_title"));
 		this.home = home;
 		this.parent = parent;
 	}
@@ -27,16 +29,16 @@ public class TeleportHomeDeleteConfirmScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.gap(6);
 
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.delete_confirm_title")).shadow(true));
-		rootComponent.child(Components.label(Component.translatable("screen.teleportmenu.homes.delete_confirm_desc", this.home.name())));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_title")).shadow(true));
+		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_desc", this.home.name())));
 
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.homes.delete_confirm_yes"), new ItemStack(Items.LAVA_BUCKET), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_yes"), new ItemStack(Items.LAVA_BUCKET), () -> {
 			ClientPlayNetworking.send(new TeleportMenuPayloads.DeleteHomeRequestPayload(this.home.id()));
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent.parentScreen());
 			}
 		}));
-		rootComponent.child(menuButton(Component.translatable("screen.teleportmenu.homes.delete_confirm_no"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_no"), new ItemStack(Items.ARROW), () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}
