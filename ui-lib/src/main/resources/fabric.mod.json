@@ -1,0 +1,28 @@
+﻿{
+  "schemaVersion": 1,
+  "id": "teleportmenu_ui",
+  "version": "${version}",
+  "name": "传送菜单 UI",
+  "description": "独立客户端菜单库，负责显示 UI 并与服务端核心模组通信。",
+  "authors": [
+    "zerosnowe"
+  ],
+  "contact": {
+    "homepage": "https://fabricmc.net/"
+  },
+  "license": "CC0-1.0",
+  "icon": "icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.example.client.TeleportMenuClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*",
+    "owo": "*"
+  }
+}

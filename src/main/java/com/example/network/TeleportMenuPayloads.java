@@ -1,0 +1,566 @@
+package com.example.network;
+
+import com.example.TeleportMenuMod;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+public final class TeleportMenuPayloads {
+	private TeleportMenuPayloads() {
+	}
+
+	public record PlayerTarget(UUID uuid, String name) {
+		public PlayerTarget {
+			name = name == null ? "" : name;
+		}
+	}
+
+	public record HomeTarget(UUID id, String name, int x, int y, int z, String iconItemId) {
+		public HomeTarget {
+			name = name == null ? "" : name;
+			iconItemId = iconItemId == null ? "minecraft:compass" : iconItemId;
+		}
+	}
+
+	public record TerritoryTarget(
+		UUID id,
+		String name,
+		String ownerName,
+		int minX,
+		int minY,
+		int minZ,
+		int maxX,
+		int maxY,
+		int maxZ,
+		String iconItemId,
+		boolean buildBreakAllowed,
+		boolean containerAllowed,
+		boolean interactAllowed,
+		boolean damageEntitiesAllowed,
+		boolean blockUseAllowed,
+		List<UUID> whitelistPlayerIds
+	) {
+		public TerritoryTarget {
+			name = name == null ? "" : name;
+			ownerName = ownerName == null ? "" : ownerName;
+			iconItemId = iconItemId == null ? "minecraft:grass_block" : iconItemId;
+			whitelistPlayerIds = List.copyOf(whitelistPlayerIds);
+		}
+	}
+
+	public record OpenMenuPayload(
+		List<PlayerTarget> targets,
+		List<HomeTarget> homes,
+		List<TerritoryTarget> territories,
+		boolean admin,
+		List<String> disabledItemIds,
+		boolean territorySelectionReady,
+		int selectionAx,
+		int selectionAy,
+		int selectionAz,
+		int selectionBx,
+		int selectionBy,
+		int selectionBz
+	) implements CustomPacketPayload {
+		public static final Type<OpenMenuPayload> TYPE = new Type<>(id("open_menu"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, OpenMenuPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(OpenMenuPayload::write, OpenMenuPayload::new);
+
+		public OpenMenuPayload {
+			targets = List.copyOf(targets);
+			homes = List.copyOf(homes);
+			territories = List.copyOf(territories);
+			disabledItemIds = List.copyOf(disabledItemIds);
+		}
+
+		private OpenMenuPayload(RegistryFriendlyByteBuf buf) {
+			this(
+				readTargets(buf),
+				readHomes(buf),
+				readTerritories(buf),
+				buf.readBoolean(),
+				readDisabledItemIds(buf),
+				buf.readBoolean(),
+				buf.readVarInt(),
+				buf.readVarInt(),
+				buf.readVarInt(),
+				buf.readVarInt(),
+				buf.readVarInt(),
+				buf.readVarInt()
+			);
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.targets.size());
+			for (PlayerTarget target : this.targets) {
+				buf.writeUUID(target.uuid());
+				buf.writeUtf(target.name(), 64);
+			}
+
+			buf.writeVarInt(this.homes.size());
+			for (HomeTarget home : this.homes) {
+				buf.writeUUID(home.id());
+				buf.writeUtf(home.name(), 64);
+				buf.writeVarInt(home.x());
+				buf.writeVarInt(home.y());
+				buf.writeVarInt(home.z());
+				buf.writeUtf(home.iconItemId(), 128);
+			}
+
+			buf.writeVarInt(this.territories.size());
+			for (TerritoryTarget territory : this.territories) {
+				buf.writeUUID(territory.id());
+				buf.writeUtf(territory.name(), 64);
+				buf.writeUtf(territory.ownerName(), 64);
+				buf.writeVarInt(territory.minX());
+				buf.writeVarInt(territory.minY());
+				buf.writeVarInt(territory.minZ());
+				buf.writeVarInt(territory.maxX());
+				buf.writeVarInt(territory.maxY());
+				buf.writeVarInt(territory.maxZ());
+				buf.writeUtf(territory.iconItemId(), 128);
+				buf.writeBoolean(territory.buildBreakAllowed());
+				buf.writeBoolean(territory.containerAllowed());
+				buf.writeBoolean(territory.interactAllowed());
+				buf.writeBoolean(territory.damageEntitiesAllowed());
+				buf.writeBoolean(territory.blockUseAllowed());
+				buf.writeVarInt(territory.whitelistPlayerIds().size());
+				for (UUID playerId : territory.whitelistPlayerIds()) {
+					buf.writeUUID(playerId);
+				}
+			}
+
+			buf.writeBoolean(this.admin);
+			buf.writeVarInt(this.disabledItemIds.size());
+			for (String itemId : this.disabledItemIds) {
+				buf.writeUtf(itemId, 128);
+			}
+
+			buf.writeBoolean(this.territorySelectionReady);
+			buf.writeVarInt(this.selectionAx);
+			buf.writeVarInt(this.selectionAy);
+			buf.writeVarInt(this.selectionAz);
+			buf.writeVarInt(this.selectionBx);
+			buf.writeVarInt(this.selectionBy);
+			buf.writeVarInt(this.selectionBz);
+		}
+
+		private static List<PlayerTarget> readTargets(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<PlayerTarget> targets = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				targets.add(new PlayerTarget(buf.readUUID(), buf.readUtf(64)));
+			}
+			return targets;
+		}
+
+		private static List<HomeTarget> readHomes(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<HomeTarget> homes = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				homes.add(new HomeTarget(
+					buf.readUUID(),
+					buf.readUtf(64),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readUtf(128)
+				));
+			}
+			return homes;
+		}
+
+		private static List<TerritoryTarget> readTerritories(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<TerritoryTarget> territories = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				territories.add(new TerritoryTarget(
+					buf.readUUID(),
+					buf.readUtf(64),
+					buf.readUtf(64),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readUtf(128),
+					buf.readBoolean(),
+					buf.readBoolean(),
+					buf.readBoolean(),
+					buf.readBoolean(),
+					buf.readBoolean(),
+					readWhitelistPlayerIds(buf)
+				));
+			}
+			return territories;
+		}
+
+		private static List<UUID> readWhitelistPlayerIds(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<UUID> whitelist = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				whitelist.add(buf.readUUID());
+			}
+			return whitelist;
+		}
+
+		private static List<String> readDisabledItemIds(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<String> ids = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				ids.add(buf.readUtf(128));
+			}
+			return ids;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record TeleportRequestPayload(UUID targetId) implements CustomPacketPayload {
+		public static final Type<TeleportRequestPayload> TYPE = new Type<>(id("teleport_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, TeleportRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(TeleportRequestPayload::write, TeleportRequestPayload::new);
+
+		private TeleportRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.targetId);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record TeleportHomeRequestPayload(UUID homeId) implements CustomPacketPayload {
+		public static final Type<TeleportHomeRequestPayload> TYPE = new Type<>(id("teleport_home_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, TeleportHomeRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(TeleportHomeRequestPayload::write, TeleportHomeRequestPayload::new);
+
+		private TeleportHomeRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.homeId);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record TeleportTerritoryRequestPayload(UUID territoryId) implements CustomPacketPayload {
+		public static final Type<TeleportTerritoryRequestPayload> TYPE = new Type<>(id("teleport_territory_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, TeleportTerritoryRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(TeleportTerritoryRequestPayload::write, TeleportTerritoryRequestPayload::new);
+
+		private TeleportTerritoryRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.territoryId);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record CreateHomeRequestPayload(String name) implements CustomPacketPayload {
+		public static final Type<CreateHomeRequestPayload> TYPE = new Type<>(id("create_home_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, CreateHomeRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(CreateHomeRequestPayload::write, CreateHomeRequestPayload::new);
+
+		public CreateHomeRequestPayload {
+			name = name == null ? "" : name;
+		}
+
+		private CreateHomeRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUtf(64));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUtf(this.name, 64);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record CreateTerritoryRequestPayload(String name) implements CustomPacketPayload {
+		public static final Type<CreateTerritoryRequestPayload> TYPE = new Type<>(id("create_territory_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, CreateTerritoryRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(CreateTerritoryRequestPayload::write, CreateTerritoryRequestPayload::new);
+
+		public CreateTerritoryRequestPayload {
+			name = name == null ? "" : name;
+		}
+
+		private CreateTerritoryRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUtf(64));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUtf(this.name, 64);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record UpdateTerritoryPermissionPayload(UUID territoryId, String permissionKey, boolean allowed) implements CustomPacketPayload {
+		public static final Type<UpdateTerritoryPermissionPayload> TYPE = new Type<>(id("update_territory_permission"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, UpdateTerritoryPermissionPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(UpdateTerritoryPermissionPayload::write, UpdateTerritoryPermissionPayload::new);
+
+		public UpdateTerritoryPermissionPayload {
+			permissionKey = permissionKey == null ? "" : permissionKey;
+		}
+
+		private UpdateTerritoryPermissionPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(64), buf.readBoolean());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.territoryId);
+			buf.writeUtf(this.permissionKey, 64);
+			buf.writeBoolean(this.allowed);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record UpdateTerritoryWhitelistPayload(UUID territoryId, UUID playerId, boolean allowed) implements CustomPacketPayload {
+		public static final Type<UpdateTerritoryWhitelistPayload> TYPE = new Type<>(id("update_territory_whitelist"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, UpdateTerritoryWhitelistPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(UpdateTerritoryWhitelistPayload::write, UpdateTerritoryWhitelistPayload::new);
+
+		private UpdateTerritoryWhitelistPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUUID(), buf.readBoolean());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.territoryId);
+			buf.writeUUID(this.playerId);
+			buf.writeBoolean(this.allowed);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record CancelTerritoryCreatePayload() implements CustomPacketPayload {
+		public static final Type<CancelTerritoryCreatePayload> TYPE = new Type<>(id("cancel_territory_create"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, CancelTerritoryCreatePayload> STREAM_CODEC =
+			CustomPacketPayload.codec(CancelTerritoryCreatePayload::write, CancelTerritoryCreatePayload::new);
+
+		private CancelTerritoryCreatePayload(RegistryFriendlyByteBuf buf) {
+			this();
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record ClientHelloPayload(int protocol) implements CustomPacketPayload {
+		public static final Type<ClientHelloPayload> TYPE = new Type<>(id("client_hello"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, ClientHelloPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(ClientHelloPayload::write, ClientHelloPayload::new);
+
+		private ClientHelloPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readVarInt());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.protocol);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record DeleteHomeRequestPayload(UUID homeId) implements CustomPacketPayload {
+		public static final Type<DeleteHomeRequestPayload> TYPE = new Type<>(id("delete_home_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, DeleteHomeRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(DeleteHomeRequestPayload::write, DeleteHomeRequestPayload::new);
+
+		private DeleteHomeRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.homeId);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record RenameHomeRequestPayload(UUID homeId, String name) implements CustomPacketPayload {
+		public static final Type<RenameHomeRequestPayload> TYPE = new Type<>(id("rename_home_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, RenameHomeRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(RenameHomeRequestPayload::write, RenameHomeRequestPayload::new);
+
+		public RenameHomeRequestPayload {
+			name = name == null ? "" : name;
+		}
+
+		private RenameHomeRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(64));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.homeId);
+			buf.writeUtf(this.name, 64);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record DisableItemRequestPayload(String itemId, boolean disable) implements CustomPacketPayload {
+		public static final Type<DisableItemRequestPayload> TYPE = new Type<>(id("disable_item_request"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, DisableItemRequestPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(DisableItemRequestPayload::write, DisableItemRequestPayload::new);
+
+		public DisableItemRequestPayload {
+			itemId = itemId == null ? "" : itemId;
+		}
+
+		private DisableItemRequestPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUtf(128), buf.readBoolean());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUtf(this.itemId, 128);
+			buf.writeBoolean(this.disable);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record HomeListPayload(List<HomeTarget> homes) implements CustomPacketPayload {
+		public static final Type<HomeListPayload> TYPE = new Type<>(id("home_list"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, HomeListPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(HomeListPayload::write, HomeListPayload::new);
+
+		public HomeListPayload {
+			homes = List.copyOf(homes);
+		}
+
+		private HomeListPayload(RegistryFriendlyByteBuf buf) {
+			this(readHomes(buf));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.homes.size());
+			for (HomeTarget home : this.homes) {
+				buf.writeUUID(home.id());
+				buf.writeUtf(home.name(), 64);
+				buf.writeVarInt(home.x());
+				buf.writeVarInt(home.y());
+				buf.writeVarInt(home.z());
+				buf.writeUtf(home.iconItemId(), 128);
+			}
+		}
+
+		private static List<HomeTarget> readHomes(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<HomeTarget> homes = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				homes.add(new HomeTarget(
+					buf.readUUID(),
+					buf.readUtf(64),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readVarInt(),
+					buf.readUtf(128)
+				));
+			}
+			return homes;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record DisabledItemListPayload(List<String> disabledItemIds) implements CustomPacketPayload {
+		public static final Type<DisabledItemListPayload> TYPE = new Type<>(id("disabled_item_list"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, DisabledItemListPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(DisabledItemListPayload::write, DisabledItemListPayload::new);
+
+		public DisabledItemListPayload {
+			disabledItemIds = List.copyOf(disabledItemIds);
+		}
+
+		private DisabledItemListPayload(RegistryFriendlyByteBuf buf) {
+			this(readDisabledItemIds(buf));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.disabledItemIds.size());
+			for (String id : this.disabledItemIds) {
+				buf.writeUtf(id, 128);
+			}
+		}
+
+		private static List<String> readDisabledItemIds(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<String> ids = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				ids.add(buf.readUtf(128));
+			}
+			return ids;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	private static ResourceLocation id(String path) {
+		return ResourceLocation.fromNamespaceAndPath(TeleportMenuMod.MOD_ID, path);
+	}
+}

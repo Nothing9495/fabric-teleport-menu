@@ -1,0 +1,68 @@
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+	id 'maven-publish'
+}
+
+version = rootProject.version
+group = rootProject.group
+
+base {
+	archivesName = "${rootProject.archives_base_name}-ui"
+}
+
+repositories {
+	maven { url 'https://maven.wispforest.io/releases/' }
+	mavenCentral()
+}
+
+sourceSets {
+	main {
+		java {
+			srcDir "${rootDir}/src/client/java"
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_version}"
+
+	modImplementation "io.wispforest:owo-lib:${rootProject.owo_version}"
+	include "io.wispforest:owo-sentinel:${rootProject.owo_version}"
+}
+
+processResources {
+	inputs.property "version", project.version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": inputs.properties.version
+	}
+
+	from("${rootDir}/src/main/resources/assets/teleportmenu/lang") {
+		into "assets/teleportmenu/lang"
+	}
+	from("${rootDir}/src/main/resources/assets/teleportmenu/icon.png") {
+		into "assets/teleportmenu"
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+}
+
+java {
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+	inputs.property "archivesName", project.base.archivesName
+
+	from("${rootDir}/LICENSE") {
+		rename { "${it}_${inputs.properties.archivesName}" }
+	}
+}

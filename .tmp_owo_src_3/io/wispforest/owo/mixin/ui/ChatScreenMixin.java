@@ -1,0 +1,21 @@
+package io.wispforest.owo.mixin.ui;
+
+import io.wispforest.owo.ui.util.CommandOpenedScreen;
+import net.minecraft.class_310;
+import net.minecraft.class_408;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(class_408.class)
+public class ChatScreenMixin {
+
+    @Inject(method = "keyPressed", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/MinecraftClient;setScreen(Lnet/minecraft/client/gui/screen/Screen;)V"), cancellable = true)
+    private void cancelClose(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (class_310.method_1551().field_1755 instanceof CommandOpenedScreen) {
+            cir.setReturnValue(true);
+        }
+    }
+
+}

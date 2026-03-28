@@ -1,0 +1,85 @@
+package io.wispforest.owo.client.screens;
+
+import io.wispforest.owo.mixin.ScreenHandlerInvoker;
+import net.minecraft.class_1657;
+import net.minecraft.class_1703;
+import net.minecraft.class_1735;
+import net.minecraft.class_1799;
+import net.minecraft.class_2371;
+
+/**
+ * A collection of utilities to ease implementing a simple {@link net.minecraft.class_465}
+ */
+public class ScreenUtils {
+
+    /**
+     * Can be used as an implementation of {@link net.minecraft.class_1703#method_7601(class_1657, int)}
+     * for simple screens with a lower (player) and upper (main) inventory
+     *
+     * <pre>
+     * {@code
+     * @Override
+     * public ItemStack quickMove(PlayerEntity player, int invSlot) {
+     *     return ScreenUtils.handleSlotTransfer(this.slots, invSlot, this.inventory.size());
+     * }
+     * }
+     * </pre>
+     *
+     * @param handler            The target ScreenHandler
+     * @param clickedSlotIndex   The slot index that was clicked
+     * @param upperInventorySize The size of the upper (main) inventory
+     * @return The return value for {{@link net.minecraft.class_1703#method_7601(class_1657, int)}}
+     */
+    public static class_1799 handleSlotTransfer(class_1703 handler, int clickedSlotIndex, int upperInventorySize) {
+        final var slots = handler.field_7761;
+        final var clickedSlot = slots.get(clickedSlotIndex);
+        if (!clickedSlot.method_7681()) return class_1799.field_8037;
+
+        final var clickedStack = clickedSlot.method_7677();
+
+        if (clickedSlotIndex < upperInventorySize) {
+            if (!insertIntoSlotRange(handler, clickedStack, upperInventorySize, slots.size(), true)) {
+                return class_1799.field_8037;
+            }
+        } else {
+            if (!insertIntoSlotRange(handler, clickedStack, 0, upperInventorySize)) {
+                return class_1799.field_8037;
+            }
+        }
+
+        if (clickedStack.method_7960()) {
+            clickedSlot.method_53512(class_1799.field_8037);
+        } else {
+            clickedSlot.method_7668();
+        }
+
+        return clickedStack;
+    }
+
+    /**
+     * Shorthand of {@link #insertIntoSlotRange(class_1703, class_1799, int, int, boolean)} with
+     * {@code false} for {@code fromLast}
+     */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public static boolean insertIntoSlotRange(class_1703 handler, class_1799 addition, int beginIndex, int endIndex) {
+        return insertIntoSlotRange(handler, addition, beginIndex, endIndex, false);
+    }
+
+    /**
+     * Tries to insert the {@code addition} stack into all slots in the given range
+     *
+     * @param handler    The ScreenHandler to operate on
+     * @param beginIndex The index of the first slot to check
+     * @param endIndex   The index of the last slot to check
+     * @param addition   The ItemStack to try and insert, this gets mutated
+     *                   if insertion (partly) succeeds
+     * @param fromLast   If {@code true}, iterate the range of slots in
+     *                   opposite order
+     * @return {@code true} if state was modified
+     */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public static boolean insertIntoSlotRange(class_1703 handler, class_1799 addition, int beginIndex, int endIndex, boolean fromLast) {
+        return ((ScreenHandlerInvoker) handler).owo$insertItem(addition, beginIndex, endIndex, fromLast);
+    }
+
+}
