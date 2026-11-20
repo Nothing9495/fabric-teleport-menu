@@ -2,6 +2,7 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -38,7 +39,7 @@ public class TeleportShopEditScreen extends BaseTeleportScreen {
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.rename.prompt")));
 		rootComponent.child(text);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.rename.confirm"), new ItemStack(Items.NAME_TAG), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.rename.confirm"), TeleportIcons.RENAME, () -> {
 			String name = this.renameInput == null ? "" : this.renameInput.trim();
 			if (name.isEmpty()) {
 				return;
@@ -51,20 +52,20 @@ public class TeleportShopEditScreen extends BaseTeleportScreen {
 		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.icon.shulker"), new ItemStack(Items.SHULKER_BOX), () -> sendIcon("minecraft:shulker_box")));
 		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.icon.barrel"), new ItemStack(Items.BARREL), () -> sendIcon("minecraft:barrel")));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.goods.add"), new ItemStack(Items.CHEST_MINECART), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.goods.add"), TeleportIcons.ADD, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportShopAddGoodScreen(this, this.shop));
 			}
 		}));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.delete"), new ItemStack(Items.LAVA_BUCKET), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.delete"), TeleportIcons.DELETE, () -> {
 			ClientPlayNetworking.send(new TeleportMenuPayloads.DeleteShopRequestPayload(this.shop.id()));
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}
 		}));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

@@ -533,6 +533,169 @@ public final class TeleportMenuPayloads {
 		}
 	}
 
+	public record BoxShopTarget(
+		UUID boxShopId,
+		UUID shopId,
+		UUID ownerId,
+		String ownerName,
+		String name,
+		boolean owner,
+		boolean needsNaming,
+		List<ShopGoodTarget> goods
+	) {
+		public BoxShopTarget {
+			ownerName = ownerName == null ? "" : ownerName;
+			name = name == null ? "" : name;
+			goods = List.copyOf(goods);
+		}
+	}
+
+	public record OpenBoxShopPayload(BoxShopTarget target) implements CustomPacketPayload {
+		public static final Type<OpenBoxShopPayload> TYPE = new Type<>(id("open_box_shop"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, OpenBoxShopPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(OpenBoxShopPayload::write, OpenBoxShopPayload::new);
+
+		private OpenBoxShopPayload(RegistryFriendlyByteBuf buf) {
+			this(new BoxShopTarget(
+				buf.readUUID(),
+				buf.readUUID(),
+				buf.readUUID(),
+				buf.readUtf(64),
+				buf.readUtf(64),
+				buf.readBoolean(),
+				buf.readBoolean(),
+				readGoods(buf)
+			));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.target.boxShopId());
+			buf.writeUUID(this.target.shopId());
+			buf.writeUUID(this.target.ownerId());
+			buf.writeUtf(this.target.ownerName(), 64);
+			buf.writeUtf(this.target.name(), 64);
+			buf.writeBoolean(this.target.owner());
+			buf.writeBoolean(this.target.needsNaming());
+			buf.writeVarInt(this.target.goods().size());
+			for (ShopGoodTarget good : this.target.goods()) {
+				buf.writeUtf(good.itemId(), 128);
+				buf.writeUtf(good.name(), 64);
+				buf.writeUtf(good.iconItemId(), 128);
+				buf.writeVarInt(good.stock());
+				buf.writeDouble(good.price());
+			}
+		}
+
+		private static List<ShopGoodTarget> readGoods(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<ShopGoodTarget> goods = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				goods.add(new ShopGoodTarget(
+					buf.readUtf(128),
+					buf.readUtf(64),
+					buf.readUtf(128),
+					buf.readVarInt(),
+					buf.readDouble()
+				));
+			}
+			return goods;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record CloseMenuPayload() implements CustomPacketPayload {
+		public static final Type<CloseMenuPayload> TYPE = new Type<>(id("close_menu"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, CloseMenuPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(CloseMenuPayload::write, CloseMenuPayload::new);
+
+		private CloseMenuPayload(RegistryFriendlyByteBuf buf) {
+			this();
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record RenameBoxShopPayload(UUID boxShopId, String name) implements CustomPacketPayload {
+		public static final Type<RenameBoxShopPayload> TYPE = new Type<>(id("rename_box_shop"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, RenameBoxShopPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(RenameBoxShopPayload::write, RenameBoxShopPayload::new);
+
+		public RenameBoxShopPayload {
+			name = name == null ? "" : name;
+		}
+
+		private RenameBoxShopPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID(), buf.readUtf(64));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.boxShopId);
+			buf.writeUtf(this.name, 64);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record QueryBoxShopHudPayload(int x, int y, int z) implements CustomPacketPayload {
+		public static final Type<QueryBoxShopHudPayload> TYPE = new Type<>(id("query_box_shop_hud"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, QueryBoxShopHudPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(QueryBoxShopHudPayload::write, QueryBoxShopHudPayload::new);
+
+		private QueryBoxShopHudPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.x);
+			buf.writeVarInt(this.y);
+			buf.writeVarInt(this.z);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record BoxShopHudPayload(boolean present, String name, int goodsCount) implements CustomPacketPayload {
+		public static final Type<BoxShopHudPayload> TYPE = new Type<>(id("box_shop_hud"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, BoxShopHudPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(BoxShopHudPayload::write, BoxShopHudPayload::new);
+
+		public BoxShopHudPayload {
+			name = name == null ? "" : name;
+			goodsCount = Math.max(0, goodsCount);
+		}
+
+		private BoxShopHudPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readBoolean(), buf.readUtf(64), buf.readVarInt());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeBoolean(this.present);
+			buf.writeUtf(this.name, 64);
+			buf.writeVarInt(this.goodsCount);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
 	public record EconomyStatePayload(
 		List<EconomyLeaderboardEntry> leaderboard,
 		List<ShopTarget> shops,

@@ -2,6 +2,7 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -9,8 +10,6 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 public class TeleportTerritoryCreateScreen extends BaseTeleportScreen {
 	private final TeleportMainScreen mainScreen;
@@ -48,7 +47,7 @@ public class TeleportTerritoryCreateScreen extends BaseTeleportScreen {
 		textBox.onChanged().subscribe(value -> this.inputName = value);
 		rootComponent.child(textBox);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.confirm_create"), new ItemStack(Items.LIME_CONCRETE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.confirm_create"), TeleportIcons.CONFIRM, () -> {
 			String name = this.inputName.trim();
 			if (name.isEmpty()) {
 				if (this.minecraft != null && this.minecraft.player != null) {
@@ -61,7 +60,7 @@ public class TeleportTerritoryCreateScreen extends BaseTeleportScreen {
 			this.onClose();
 		}));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.cancel_create"), new ItemStack(Items.BARRIER), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.cancel_create"), TeleportIcons.CANCEL, () -> {
 			ClientPlayNetworking.send(new TeleportMenuPayloads.CancelTerritoryCreatePayload());
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.mainScreen);

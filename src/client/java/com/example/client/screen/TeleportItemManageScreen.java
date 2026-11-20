@@ -4,6 +4,7 @@ import com.example.client.i18n.ClientI18n;
 
 import com.example.client.model.ItemManageEntry;
 import com.example.client.widget.OreRegistryEntryButtonWidget;
+import com.example.client.widget.TeleportIcons;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.Containers;
@@ -79,12 +80,12 @@ public class TeleportItemManageScreen extends BaseTeleportScreen {
 		itemList.surface(Surface.BLANK);
 		rootComponent.child(itemList);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), TeleportIcons.CLOSE, this::onClose));
 	}
 
 	private void refreshList() {

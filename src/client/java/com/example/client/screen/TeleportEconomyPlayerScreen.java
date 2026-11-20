@@ -2,6 +2,7 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -9,8 +10,6 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 public class TeleportEconomyPlayerScreen extends BaseTeleportScreen {
 	private final TeleportEconomyManageScreen parent;
@@ -38,33 +37,33 @@ public class TeleportEconomyPlayerScreen extends BaseTeleportScreen {
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.admin.economy.amount")));
 		rootComponent.child(amountBox);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.query"), new ItemStack(Items.SPYGLASS), () -> sendAction("query", 0D)));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.add"), new ItemStack(Items.EMERALD), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.query"), TeleportIcons.QUERY, () -> sendAction("query", 0D)));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.add"), TeleportIcons.PLUS, () -> {
 			Double amount = parseAmount(amountHolder[0]);
 			if (amount != null) {
 				sendAction("add", amount);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.subtract"), new ItemStack(Items.REDSTONE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.subtract"), TeleportIcons.MINUS, () -> {
 			Double amount = parseAmount(amountHolder[0]);
 			if (amount != null) {
 				sendAction("subtract", amount);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.set"), new ItemStack(Items.ANVIL), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.set"), TeleportIcons.SET, () -> {
 			Double amount = parseAmount(amountHolder[0]);
 			if (amount != null) {
 				sendAction("set", amount);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.reset"), new ItemStack(Items.BUCKET), () -> sendAction("reset", 0D)));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy.reset"), TeleportIcons.RESET, () -> sendAction("reset", 0D)));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), TeleportIcons.CLOSE, this::onClose));
 	}
 
 	private void sendAction(String action, double amount) {

@@ -4,6 +4,7 @@ import com.example.client.i18n.ClientI18n;
 
 import com.example.client.widget.OreHomeEntryButtonWidget;
 import com.example.client.widget.OreSmallActionButtonWidget;
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
@@ -15,8 +16,6 @@ import io.wispforest.owo.ui.core.Surface;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.List;
 
@@ -98,7 +97,7 @@ public class TeleportTerritoryScreen extends BaseTeleportScreen {
 		territoryList.surface(Surface.BLANK);
 
 		rootComponent.child(territoryList);
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.create"), new ItemStack(Items.LIME_CONCRETE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.create"), TeleportIcons.ADD, () -> {
 			Minecraft client = this.minecraft;
 			if (client == null) {
 				return;
@@ -109,11 +108,11 @@ public class TeleportTerritoryScreen extends BaseTeleportScreen {
 				client.player.sendSystemMessage(ClientI18n.tr("message.teleportmenu.territory_create_guide"));
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.mainScreen);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), TeleportIcons.CLOSE, this::onClose));
 	}
 }

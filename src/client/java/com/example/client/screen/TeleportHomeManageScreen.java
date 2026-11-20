@@ -2,6 +2,7 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -9,8 +10,6 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 public class TeleportHomeManageScreen extends BaseTeleportScreen {
 	private final TeleportMenuPayloads.HomeTarget home;
@@ -45,7 +44,7 @@ public class TeleportHomeManageScreen extends BaseTeleportScreen {
 		textBox.onChanged().subscribe(value -> this.renameInput = value);
 		rootComponent.child(textBox);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.rename"), new ItemStack(Items.NAME_TAG), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.rename"), TeleportIcons.RENAME, () -> {
 			String newName = this.renameInput.trim();
 			if (newName.isEmpty()) {
 				if (this.minecraft != null && this.minecraft.player != null) {
@@ -60,13 +59,13 @@ public class TeleportHomeManageScreen extends BaseTeleportScreen {
 			}
 		}));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete"), new ItemStack(Items.LAVA_BUCKET), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete"), TeleportIcons.DELETE, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportHomeDeleteConfirmScreen(this.home, this));
 			}
 		}));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

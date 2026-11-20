@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -23,6 +24,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -41,6 +43,8 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.decoration.GlowItemFrame;
@@ -72,12 +76,15 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.CraftingTableBlock;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.LeverBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.ScoreHolder;
@@ -115,6 +122,9 @@ public class TeleportMenuMod implements ModInitializer {
 	private static final Map<UUID, List<HomePoint>> PLAYER_HOMES = new ConcurrentHashMap<>();
 	private static final Map<UUID, List<TerritoryPoint>> PLAYER_TERRITORIES = new ConcurrentHashMap<>();
 	private static final Map<UUID, List<ShopPoint>> PLAYER_SHOPS = new ConcurrentHashMap<>();
+	private static final Map<UUID, BoxShopPoint> BOX_SHOPS = new ConcurrentHashMap<>();
+	private static final Set<UUID> BOX_SHOP_SHOP_IDS = ConcurrentHashMap.newKeySet();
+	private static final Map<UUID, UUID> BOX_SHOP_HOLOGRAMS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> PLAYER_SHOP_LIMITS = new ConcurrentHashMap<>();
 	private static final Map<UUID, TerritorySelection> TERRITORY_SELECTIONS = new ConcurrentHashMap<>();
 	private static final Map<UUID, TerritoryHudState> TERRITORY_HUD_STATES = new ConcurrentHashMap<>();
@@ -133,10 +143,12 @@ public class TeleportMenuMod implements ModInitializer {
 	private static final double ECONOMY_MINING_REDSTONE_LAPIS_REWARD = 10D;
 	private static final double ECONOMY_MINING_DIAMOND_EMERALD_REWARD = 15D;
 	private static final double ECONOMY_SPECIAL_MINING_REWARD = 20D;
-	private static final String ECONOMY_SIDEBAR_ENTRY = "閲戝竵";
+	private static final String ECONOMY_SIDEBAR_ENTRY = "\u25C6 \u4F59\u989D";
 	private static final int DEFAULT_SHOP_LIMIT = 2;
 	private static final int SHOP_LIMIT_EXPAND_COST = 100;
 	private static final int SHOP_DELETE_COST = 10;
+	private static final String DEFAULT_BOX_SHOP_NAME = "\u7bb1\u5b50\u5546\u5e97";
+	private static final String BOX_SHOP_HOLOGRAM_TAG = "teleportmenu_boxshop_holo";
 	private static boolean ECONOMY_API_INITIALIZED = false;
 	private static boolean ECONOMY_API_READY = false;
 	private static Method ECONOMY_GET_MONEY = null;
@@ -155,17 +167,34 @@ public class TeleportMenuMod implements ModInitializer {
 	private static final DustParticleOptions TERRITORY_SELECTION_PARTICLE = new DustParticleOptions(new Vector3f(0.25F, 1.0F, 0.25F), 1.0F);
 	private static long SERVER_TICK = 0L;
 
+	private static String sanitizeBoxShopName(String rawName) {
+		String sanitized = rawName == null ? "" : rawName
+			.replace('\r', ' ')
+			.replace('\n', ' ')
+			.replace('\t', ' ')
+			.trim();
+		if (sanitized.isEmpty()) {
+			sanitized = DEFAULT_BOX_SHOP_NAME;
+		}
+		if (sanitized.length() > 20) {
+			sanitized = sanitized.substring(0, 20);
+		}
+		return sanitized;
+	}
+
 	private static final List<Item> HOME_ICON_POOL = List.of(
 		Items.COMPASS, Items.CLOCK, Items.RED_BED, Items.OAK_DOOR, Items.CHEST, Items.TORCH,
 		Items.CAMPFIRE, Items.BREAD, Items.GOLDEN_APPLE, Items.DIAMOND, Items.ENDER_PEARL, Items.BOOK
 	);
 	@Override
 	public void onInitialize() {
+		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.CloseMenuPayload.TYPE, TeleportMenuPayloads.CloseMenuPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.OpenMenuPayload.TYPE, TeleportMenuPayloads.OpenMenuPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.HomeListPayload.TYPE, TeleportMenuPayloads.HomeListPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.DisabledItemListPayload.TYPE, TeleportMenuPayloads.DisabledItemListPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.EconomyStatePayload.TYPE, TeleportMenuPayloads.EconomyStatePayload.STREAM_CODEC);
-		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.LocalizationSyncPayload.TYPE, TeleportMenuPayloads.LocalizationSyncPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.OpenBoxShopPayload.TYPE, TeleportMenuPayloads.OpenBoxShopPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.BoxShopHudPayload.TYPE, TeleportMenuPayloads.BoxShopHudPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.TeleportRequestPayload.TYPE, TeleportMenuPayloads.TeleportRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.TeleportHomeRequestPayload.TYPE, TeleportMenuPayloads.TeleportHomeRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.TeleportTerritoryRequestPayload.TYPE, TeleportMenuPayloads.TeleportTerritoryRequestPayload.STREAM_CODEC);
@@ -186,6 +215,8 @@ public class TeleportMenuMod implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.SetShopIconRequestPayload.TYPE, TeleportMenuPayloads.SetShopIconRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.AddShopGoodRequestPayload.TYPE, TeleportMenuPayloads.AddShopGoodRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.BuyShopGoodRequestPayload.TYPE, TeleportMenuPayloads.BuyShopGoodRequestPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.RenameBoxShopPayload.TYPE, TeleportMenuPayloads.RenameBoxShopPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.QueryBoxShopHudPayload.TYPE, TeleportMenuPayloads.QueryBoxShopHudPayload.STREAM_CODEC);
 
 		PlayerBlockBreakEvents.BEFORE.register(TeleportMenuMod::onBeforeBlockBreak);
 		PlayerBlockBreakEvents.AFTER.register(TeleportMenuMod::onAfterBlockBreak);
@@ -199,6 +230,9 @@ public class TeleportMenuMod implements ModInitializer {
 				.executes(context -> showTerritoryUsage(context.getSource()))
 				.then(literal("a").executes(context -> setTerritoryPoint(context.getSource(), true)))
 				.then(literal("b").executes(context -> setTerritoryPoint(context.getSource(), false))));
+			dispatcher.register(literal("boxshop")
+				.then(literal("add").executes(context -> addBoxShop(context.getSource())))
+				.then(literal("clean").executes(context -> cleanBoxShop(context.getSource()))));
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.TeleportRequestPayload.TYPE, (payload, context) -> handleTeleportRequest(context.player(), payload.targetId()));
@@ -225,6 +259,9 @@ public class TeleportMenuMod implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.SetShopIconRequestPayload.TYPE, (payload, context) -> handleSetShopIcon(context.player(), payload.shopId(), payload.iconItemId()));
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.AddShopGoodRequestPayload.TYPE, (payload, context) -> handleAddShopGood(context.player(), payload.shopId(), payload.itemId(), payload.stock(), payload.price()));
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.BuyShopGoodRequestPayload.TYPE, (payload, context) -> handleBuyShopGood(context.player(), payload.shopId(), payload.itemId(), payload.amount()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.RenameBoxShopPayload.TYPE, (payload, context) -> handleRenameBoxShop(context.player(), payload.boxShopId(), payload.name()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.QueryBoxShopHudPayload.TYPE, (payload, context) ->
+			handleQueryBoxShopHud(context.player(), payload.x(), payload.y(), payload.z()));
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 			if (!(entity instanceof Monster)) {
 				return;
@@ -236,6 +273,7 @@ public class TeleportMenuMod implements ModInitializer {
 
 		ServerLifecycleEvents.SERVER_STARTED.register(TeleportMenuMod::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPING.register(TeleportMenuMod::onServerStopping);
+		ServerChunkEvents.CHUNK_LOAD.register((world, chunk) -> cleanupLegacyBoxShopDisplaysInChunk(world, chunk));
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> syncLocalizations(handler.player));
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			UUID playerId = handler.player.getUUID();
@@ -252,6 +290,7 @@ public class TeleportMenuMod implements ModInitializer {
 		ACTIVE_SERVER = server;
 		loadServerLocalizations();
 		loadPersistentData(server);
+		cleanupAllLegacyBoxShopDisplays(server);
 		replaceDisabledForAllPlayers(server);
 		refreshEconomySidebar(server);
 	}
@@ -268,6 +307,9 @@ public class TeleportMenuMod implements ModInitializer {
 		PLAYER_EQUIPMENT_COUNTS.clear();
 		PLAYER_REWARDED_EQUIPMENT.clear();
 		PLAYER_SHOPS.clear();
+		BOX_SHOPS.clear();
+		BOX_SHOP_SHOP_IDS.clear();
+		BOX_SHOP_HOLOGRAMS.clear();
 		PLAYER_SHOP_LIMITS.clear();
 		PLAYER_UI_PROTOCOLS.clear();
 		SERVER_LOCALIZATIONS.clear();
@@ -291,6 +333,9 @@ public class TeleportMenuMod implements ModInitializer {
 		PLAYER_HOMES.clear();
 		PLAYER_TERRITORIES.clear();
 		PLAYER_SHOPS.clear();
+		BOX_SHOPS.clear();
+		BOX_SHOP_SHOP_IDS.clear();
+		BOX_SHOP_HOLOGRAMS.clear();
 		PLAYER_SHOP_LIMITS.clear();
 		DISABLED_ITEM_IDS.clear();
 		PLAYER_REWARDED_EQUIPMENT.clear();
@@ -313,6 +358,7 @@ public class TeleportMenuMod implements ModInitializer {
 			readHomes(root);
 			readTerritories(root);
 			readShops(root);
+			readBoxShops(root);
 			readShopLimits(root);
 			readRewardedEquipment(root);
 			LOGGER.info("Loaded teleport menu data from {}", file);
@@ -333,6 +379,7 @@ public class TeleportMenuMod implements ModInitializer {
 			root.add("homes", writeHomes());
 			root.add("territories", writeTerritories());
 			root.add("shops", writeShops());
+			root.add("boxShops", writeBoxShops());
 			root.add("shopLimits", writeShopLimits());
 			root.add("rewardedEquipment", writeRewardedEquipment());
 
@@ -420,6 +467,25 @@ public class TeleportMenuMod implements ModInitializer {
 				obj.add("goods", goodsArray);
 				array.add(obj);
 			}
+		}
+		return array;
+	}
+
+	private static JsonArray writeBoxShops() {
+		JsonArray array = new JsonArray();
+		for (BoxShopPoint boxShop : BOX_SHOPS.values()) {
+			JsonObject obj = new JsonObject();
+			obj.addProperty("id", boxShop.id().toString());
+			obj.addProperty("shopId", boxShop.shopId().toString());
+			obj.addProperty("ownerId", boxShop.ownerId().toString());
+			obj.addProperty("ownerName", boxShop.ownerName());
+			obj.addProperty("name", boxShop.name());
+			obj.addProperty("dimensionId", boxShop.dimensionId().toString());
+			obj.addProperty("x", boxShop.x());
+			obj.addProperty("y", boxShop.y());
+			obj.addProperty("z", boxShop.z());
+			obj.addProperty("named", boxShop.named());
+			array.add(obj);
 		}
 		return array;
 	}
@@ -680,12 +746,12 @@ public class TeleportMenuMod implements ModInitializer {
 			.getPlayers()
 			.stream()
 			.filter(other -> !other.getUUID().equals(serverPlayer.getUUID()))
-			.map(other -> new TeleportMenuPayloads.PlayerTarget(other.getUUID(), other.getGameProfile().getName()))
+			.map(other -> new TeleportMenuPayloads.PlayerTarget(other.getUUID(), other.getName().getString()))
 			.toList();
 
 		TerritorySelection selection = TERRITORY_SELECTIONS.get(serverPlayer.getUUID());
 		boolean selectionReady = selection != null && selection.pointA() != null && selection.pointB() != null
-			&& selection.dimensionId().equals(serverPlayer.serverLevel().dimension().location());
+			&& selection.dimensionId().equals(serverPlayer.level().dimension().location());
 
 		BlockPos a = selectionReady ? selection.pointA() : BlockPos.ZERO;
 		BlockPos b = selectionReady ? selection.pointB() : BlockPos.ZERO;
@@ -716,6 +782,16 @@ public class TeleportMenuMod implements ModInitializer {
 			return true;
 		}
 
+		BoxShopPoint boxShop = findBoxShopByBlock(level.dimension().location(), pos);
+		if (boxShop != null) {
+			if (boxShop.ownerId().equals(serverPlayer.getUUID())) {
+				sendWarn(serverPlayer, "message.teleportmenu.boxshop_clean_hint");
+			} else {
+				sendError(serverPlayer, "message.teleportmenu.no_permission_action");
+			}
+			return false;
+		}
+
 		return checkTerritoryPermission(serverPlayer, pos, TerritoryPermission.BUILD_BREAK);
 	}
 
@@ -733,6 +809,12 @@ public class TeleportMenuMod implements ModInitializer {
 		}
 
 		BlockPos pos = hitResult.getBlockPos();
+		BoxShopPoint boxShop = findBoxShopByBlock(level.dimension().location(), pos);
+		if (boxShop != null && hand == InteractionHand.MAIN_HAND) {
+			openBoxShop(serverPlayer, boxShop);
+			return InteractionResult.SUCCESS;
+		}
+
 		Block block = level.getBlockState(pos).getBlock();
 		ItemStack held = player.getItemInHand(hand);
 
@@ -795,6 +877,63 @@ public class TeleportMenuMod implements ModInitializer {
 		return 1;
 	}
 
+	private static int addBoxShop(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		ServerLevel level = (ServerLevel) player.level();
+		BlockPos boxPos = player.blockPosition();
+		ResourceLocation dimensionId = level.dimension().location();
+
+		if (findBoxShopByBlock(dimensionId, boxPos) != null) {
+			sendError(source, "message.teleportmenu.boxshop_place_occupied");
+			return 0;
+		}
+
+		UUID shopId = UUID.randomUUID();
+		ShopPoint shop = new ShopPoint(
+			shopId,
+			player.getUUID(),
+			player.getName().getString(),
+			DEFAULT_BOX_SHOP_NAME,
+			"minecraft:ender_chest",
+			new ArrayList<>()
+		);
+		PLAYER_SHOPS.computeIfAbsent(player.getUUID(), key -> new ArrayList<>()).add(shop);
+		BOX_SHOP_SHOP_IDS.add(shopId);
+		level.setBlockAndUpdate(boxPos, Blocks.ENDER_CHEST.defaultBlockState());
+
+		UUID boxShopId = UUID.randomUUID();
+		BOX_SHOPS.put(boxShopId, new BoxShopPoint(
+			boxShopId,
+			shopId,
+			player.getUUID(),
+			player.getName().getString(),
+			DEFAULT_BOX_SHOP_NAME,
+			dimensionId,
+			boxPos.getX(),
+			boxPos.getY(),
+			boxPos.getZ(),
+			false
+		));
+		refreshBoxShopHologram(player.server, BOX_SHOPS.get(boxShopId));
+
+		persistDataIfPossible();
+		sendSuccess(source, "message.teleportmenu.boxshop_created");
+		return 1;
+	}
+
+	private static int cleanBoxShop(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		ServerPlayer player = source.getPlayerOrException();
+		BoxShopPoint target = findOwnedBoxShopAtFeet(player);
+		if (target == null) {
+			sendError(source, "message.teleportmenu.boxshop_not_found");
+			return 0;
+		}
+
+		removeBoxShop(player.server, target);
+		sendSuccess(source, "message.teleportmenu.boxshop_cleaned");
+		return 1;
+	}
+
 	private static int showTerritoryUsage(CommandSourceStack source) {
 		sendWarn(source, "message.teleportmenu.territory_usage_1");
 		sendWarn(source, "message.teleportmenu.territory_usage_2");
@@ -805,7 +944,7 @@ public class TeleportMenuMod implements ModInitializer {
 	private static int setTerritoryPoint(CommandSourceStack source, boolean setA) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
 		ServerPlayer player = source.getPlayerOrException();
 		UUID playerId = player.getUUID();
-		ResourceLocation dimensionId = player.serverLevel().dimension().location();
+		ResourceLocation dimensionId = player.level().dimension().location();
 		BlockPos pos = player.blockPosition();
 
 		if (setA) {
@@ -853,7 +992,7 @@ public class TeleportMenuMod implements ModInitializer {
 			return;
 		}
 
-		source.teleportTo(target.serverLevel(), target.getX(), target.getY(), target.getZ(), target.getYRot(), target.getXRot());
+		source.teleportTo((ServerLevel)target.level(), target.getX(), target.getY(), target.getZ(), target.getYRot(), target.getXRot());
 		sendSuccess(source, "message.teleportmenu.teleport_success_player", target.getDisplayName());
 	}
 
@@ -875,7 +1014,7 @@ public class TeleportMenuMod implements ModInitializer {
 			return;
 		}
 
-		source.teleportTo(source.serverLevel(), home.x() + 0.5, home.y(), home.z() + 0.5, source.getYRot(), source.getXRot());
+		source.teleportTo((ServerLevel)source.level(), home.x() + 0.5, home.y(), home.z() + 0.5, source.getYRot(), source.getXRot());
 		sendSuccess(source, "message.teleportmenu.teleport_success_home", home.name(), home.x(), home.y(), home.z());
 	}
 
@@ -949,7 +1088,7 @@ public class TeleportMenuMod implements ModInitializer {
 			return;
 		}
 
-		if (!selection.dimensionId().equals(source.serverLevel().dimension().location())) {
+		if (!selection.dimensionId().equals(source.level().dimension().location())) {
 			sendError(source, "message.teleportmenu.territory_dimension_mismatch");
 			return;
 		}
@@ -989,7 +1128,7 @@ public class TeleportMenuMod implements ModInitializer {
 		territories.add(new TerritoryPoint(
 			UUID.randomUUID(),
 			source.getUUID(),
-			source.getGameProfile().getName(),
+			source.getName().getString(),
 			finalName,
 			selection.dimensionId(),
 			minX,
@@ -1210,7 +1349,7 @@ public class TeleportMenuMod implements ModInitializer {
 			return;
 		}
 
-		String targetName = target.getGameProfile().getName();
+		String targetName = target.getName().getString();
 		String action = rawAction == null ? "" : rawAction.trim().toLowerCase(Locale.ROOT);
 		double safeAmount = Math.max(0D, amount);
 
@@ -1269,12 +1408,13 @@ public class TeleportMenuMod implements ModInitializer {
 
 		List<ShopPoint> shops = PLAYER_SHOPS.computeIfAbsent(source.getUUID(), key -> new ArrayList<>());
 		int limit = PLAYER_SHOP_LIMITS.getOrDefault(source.getUUID(), DEFAULT_SHOP_LIMIT);
-		if (shops.size() >= limit) {
-			sendError(source, "message.teleportmenu.shop_limit_reached", shops.size(), limit);
+		int ownNormalShopCount = countOwnedNormalShops(source.getUUID());
+		if (ownNormalShopCount >= limit) {
+			sendError(source, "message.teleportmenu.shop_limit_reached", ownNormalShopCount, limit);
 			return;
 		}
 
-		shops.add(new ShopPoint(UUID.randomUUID(), source.getUUID(), source.getGameProfile().getName(), name, "minecraft:chest", new ArrayList<>()));
+		shops.add(new ShopPoint(UUID.randomUUID(), source.getUUID(), source.getName().getString(), name, "minecraft:chest", new ArrayList<>()));
 		persistDataIfPossible();
 		sendSuccess(source, "message.teleportmenu.shop_created", name);
 		syncEconomyState(source);
@@ -1287,12 +1427,12 @@ public class TeleportMenuMod implements ModInitializer {
 		}
 
 		try {
-			double money = economyGetMoney(source.getGameProfile().getName());
+			double money = economyGetMoney(source.getName().getString());
 			if (money < SHOP_LIMIT_EXPAND_COST) {
 				sendError(source, "message.teleportmenu.shop_expand_not_enough", economyFormat(SHOP_LIMIT_EXPAND_COST));
 				return;
 			}
-			economySubtract(source.getGameProfile().getName(), SHOP_LIMIT_EXPAND_COST);
+			economySubtract(source.getName().getString(), SHOP_LIMIT_EXPAND_COST);
 			int next = PLAYER_SHOP_LIMITS.getOrDefault(source.getUUID(), DEFAULT_SHOP_LIMIT) + 1;
 			PLAYER_SHOP_LIMITS.put(source.getUUID(), next);
 			persistDataIfPossible();
@@ -1319,14 +1459,18 @@ public class TeleportMenuMod implements ModInitializer {
 			sendError(source, "message.teleportmenu.shop_not_found");
 			return;
 		}
+		if (isBoxShopShop(shopId)) {
+			sendError(source, "message.teleportmenu.boxshop_manage_only");
+			return;
+		}
 
 		try {
-			double money = economyGetMoney(source.getGameProfile().getName());
+			double money = economyGetMoney(source.getName().getString());
 			if (money < SHOP_DELETE_COST) {
 				sendError(source, "message.teleportmenu.shop_delete_not_enough", economyFormat(SHOP_DELETE_COST));
 				return;
 			}
-			economySubtract(source.getGameProfile().getName(), SHOP_DELETE_COST);
+			economySubtract(source.getName().getString(), SHOP_DELETE_COST);
 			shops.removeIf(shop -> shop.id().equals(shopId));
 			persistDataIfPossible();
 			sendSuccess(source, "message.teleportmenu.shop_deleted", target.name());
@@ -1340,6 +1484,10 @@ public class TeleportMenuMod implements ModInitializer {
 		ShopPoint shop = findOwnedShop(source, shopId);
 		if (shop == null) {
 			sendError(source, "message.teleportmenu.shop_not_found");
+			return;
+		}
+		if (isBoxShopShop(shopId)) {
+			sendError(source, "message.teleportmenu.boxshop_manage_only");
 			return;
 		}
 
@@ -1358,10 +1506,37 @@ public class TeleportMenuMod implements ModInitializer {
 		syncEconomyState(source);
 	}
 
+	private static void handleRenameBoxShop(ServerPlayer source, UUID boxShopId, String rawName) {
+		BoxShopPoint boxShop = BOX_SHOPS.get(boxShopId);
+		if (boxShop == null || !boxShop.ownerId().equals(source.getUUID())) {
+			sendError(source, "message.teleportmenu.boxshop_not_found");
+			return;
+		}
+
+		ShopPoint shop = findOwnedShop(source, boxShop.shopId());
+		if (shop == null) {
+			sendError(source, "message.teleportmenu.shop_not_found");
+			return;
+		}
+
+		String name = sanitizeBoxShopName(rawName);
+
+		shop.setName(name);
+		BOX_SHOPS.put(boxShop.id(), boxShop.withName(name, true));
+		updateBoxShopBlock(source.server, boxShop.id());
+		refreshBoxShopHologram(source.server, BOX_SHOPS.get(boxShop.id()));
+		persistDataIfPossible();
+		sendSuccess(source, "message.teleportmenu.boxshop_renamed", name);
+	}
+
 	private static void handleSetShopIcon(ServerPlayer source, UUID shopId, String iconItemId) {
 		ShopPoint shop = findOwnedShop(source, shopId);
 		if (shop == null) {
 			sendError(source, "message.teleportmenu.shop_not_found");
+			return;
+		}
+		if (isBoxShopShop(shopId)) {
+			sendError(source, "message.teleportmenu.boxshop_manage_only");
 			return;
 		}
 
@@ -1412,6 +1587,10 @@ public class TeleportMenuMod implements ModInitializer {
 			good.setStock(good.stock() + stock);
 			good.setPrice(price);
 		}
+		BoxShopPoint boxShop = findBoxShopByShopId(shop.id());
+		if (boxShop != null) {
+			refreshBoxShopHologram(source.server, boxShop);
+		}
 
 		persistDataIfPossible();
 		String formattedPrice;
@@ -1452,13 +1631,13 @@ public class TeleportMenuMod implements ModInitializer {
 
 		double total = good.price() * amount;
 		try {
-			double money = economyGetMoney(buyer.getGameProfile().getName());
+			double money = economyGetMoney(buyer.getName().getString());
 			if (money < total) {
 				sendError(buyer, "message.teleportmenu.shop_buy_not_enough", economyFormat(total));
 				return;
 			}
 
-			economySubtract(buyer.getGameProfile().getName(), total);
+			economySubtract(buyer.getName().getString(), total);
 			if (!buyer.getUUID().equals(shop.ownerId())) {
 				economyAdd(shop.ownerName(), total);
 			}
@@ -1466,6 +1645,10 @@ public class TeleportMenuMod implements ModInitializer {
 			good.setStock(good.stock() - amount);
 			if (good.stock() <= 0) {
 				shop.goods().remove(good);
+			}
+			BoxShopPoint boxShop = findBoxShopByShopId(shop.id());
+			if (boxShop != null) {
+				refreshBoxShopHologram(buyer.server, boxShop);
 			}
 
 			Item item = BuiltInRegistries.ITEM.getOptional(ResourceLocation.parse(good.itemId())).orElse(Items.AIR);
@@ -1492,7 +1675,7 @@ public class TeleportMenuMod implements ModInitializer {
 		}
 
 		try {
-			economyAdd(killer.getGameProfile().getName(), ECONOMY_MONSTER_KILL_REWARD);
+			economyAdd(killer.getName().getString(), ECONOMY_MONSTER_KILL_REWARD);
 			sendSuccess(killer, "message.teleportmenu.economy_reward_kill", economyFormat(ECONOMY_MONSTER_KILL_REWARD));
 		} catch (Exception error) {
 			LOGGER.debug("Failed to award monster kill economy reward", error);
@@ -1514,7 +1697,7 @@ public class TeleportMenuMod implements ModInitializer {
 		}
 
 		try {
-			economyAdd(player.getGameProfile().getName(), reward);
+			economyAdd(player.getName().getString(), reward);
 			sendSuccess(player, "message.teleportmenu.economy_reward_mining", economyFormat(reward));
 		} catch (Exception error) {
 			LOGGER.debug("Failed to award mining economy reward", error);
@@ -1595,7 +1778,7 @@ public class TeleportMenuMod implements ModInitializer {
 
 		double reward = ECONOMY_EQUIPMENT_REWARD * newlyRewardedTypes;
 		try {
-			economyAdd(player.getGameProfile().getName(), reward);
+			economyAdd(player.getName().getString(), reward);
 			if (changed) {
 				persistDataIfPossible();
 			}
@@ -1708,20 +1891,65 @@ public class TeleportMenuMod implements ModInitializer {
 	}
 
 	private static void syncLocalizations(ServerPlayer player) {
-		if (!ServerPlayNetworking.canSend(player, TeleportMenuPayloads.LocalizationSyncPayload.TYPE)) {
+		// Disabled: keep UI localization bundled client-side to avoid protocol mismatch on join.
+	}
+
+	private static void readBoxShops(JsonObject root) {
+		if (!root.has("boxShops") || !root.get("boxShops").isJsonArray()) {
 			return;
 		}
 
-		List<TeleportMenuPayloads.LanguagePack> packs = new ArrayList<>();
-		for (Map.Entry<String, Map<String, String>> languageEntry : SERVER_LOCALIZATIONS.entrySet()) {
-			List<TeleportMenuPayloads.LangEntry> entries = languageEntry.getValue().entrySet().stream()
-				.sorted(Map.Entry.comparingByKey())
-				.map(entry -> new TeleportMenuPayloads.LangEntry(entry.getKey(), entry.getValue()))
-				.toList();
-			packs.add(new TeleportMenuPayloads.LanguagePack(languageEntry.getKey(), entries));
-		}
+		for (JsonElement element : root.getAsJsonArray("boxShops")) {
+			if (!element.isJsonObject()) {
+				continue;
+			}
 
-		ServerPlayNetworking.send(player, new TeleportMenuPayloads.LocalizationSyncPayload(packs, LOCALIZATION_VERSION));
+			try {
+				JsonObject obj = element.getAsJsonObject();
+				UUID id = UUID.fromString(obj.get("id").getAsString());
+				UUID shopId = UUID.fromString(obj.get("shopId").getAsString());
+				BOX_SHOP_SHOP_IDS.add(shopId);
+				UUID ownerId = UUID.fromString(obj.get("ownerId").getAsString());
+				String ownerName = obj.has("ownerName") ? obj.get("ownerName").getAsString() : "";
+				String name = obj.has("name") ? obj.get("name").getAsString() : DEFAULT_BOX_SHOP_NAME;
+				boolean named = !obj.has("named") || obj.get("named").getAsBoolean();
+				ResourceLocation dimensionId;
+				BlockPos boxPos;
+
+				if (obj.has("dimensionId") && obj.has("x") && obj.has("y") && obj.has("z")) {
+					dimensionId = ResourceLocation.parse(obj.get("dimensionId").getAsString());
+					boxPos = new BlockPos(obj.get("x").getAsInt(), obj.get("y").getAsInt(), obj.get("z").getAsInt());
+				} else if (obj.has("entityId") && ACTIVE_SERVER != null) {
+					UUID legacyEntityId = UUID.fromString(obj.get("entityId").getAsString());
+					net.minecraft.world.entity.Entity legacyEntity = findEntityByUuid(ACTIVE_SERVER, legacyEntityId);
+					if (legacyEntity == null) {
+						continue;
+					}
+					dimensionId = legacyEntity.level().dimension().location();
+					boxPos = legacyEntity.blockPosition();
+					legacyEntity.discard();
+				} else {
+					continue;
+				}
+
+				BoxShopPoint point = new BoxShopPoint(
+					id,
+					shopId,
+					ownerId,
+					ownerName,
+					name,
+					dimensionId,
+					boxPos.getX(),
+					boxPos.getY(),
+					boxPos.getZ(),
+					named
+				);
+				BOX_SHOPS.put(id, point);
+				ensureBoxShopBlock(ACTIVE_SERVER, point);
+				refreshBoxShopHologram(ACTIVE_SERVER, point);
+			} catch (Exception ignored) {
+			}
+		}
 	}
 
 	private static double economyGetMoney(String playerName) throws InvocationTargetException, IllegalAccessException {
@@ -1767,7 +1995,7 @@ public class TeleportMenuMod implements ModInitializer {
 					showTerritorySelectionParticles(player);
 				}
 			} catch (Exception error) {
-				LOGGER.debug("Skip ticking player during shutdown/transition: {}", player != null ? player.getGameProfile().getName() : "null", error);
+				LOGGER.debug("Skip ticking player during shutdown/transition: {}", player != null ? player.getName().getString() : "null", error);
 			}
 		}
 	}
@@ -1787,7 +2015,7 @@ public class TeleportMenuMod implements ModInitializer {
 					objective = scoreboard.addObjective(
 						objectiveName,
 						ObjectiveCriteria.DUMMY,
-						Component.literal("閲戝竵浣欓"),
+						Component.literal("\u25C6 \u91D1\u5E01\u4F59\u989D"),
 						ObjectiveCriteria.RenderType.INTEGER,
 						false,
 						null
@@ -1795,7 +2023,7 @@ public class TeleportMenuMod implements ModInitializer {
 					created = true;
 				}
 
-				double money = economyGetMoney(player.getGameProfile().getName());
+				double money = economyGetMoney(player.getName().getString());
 				int score = (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, Math.round(money)));
 				scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(ECONOMY_SIDEBAR_ENTRY), objective).set(score);
 
@@ -1812,14 +2040,14 @@ public class TeleportMenuMod implements ModInitializer {
 					Optional.empty()
 				));
 			} catch (Exception error) {
-				LOGGER.debug("Failed to refresh economy sidebar for {}", player.getGameProfile().getName(), error);
+				LOGGER.debug("Failed to refresh economy sidebar for {}", player.getName().getString(), error);
 			}
 		}
 	}
 
 	private static String economySidebarObjectiveName(UUID playerId) {
 		String compact = playerId.toString().replace("-", "");
-		return "tg_" + compact.substring(0, 12);
+		return "te2_" + compact.substring(0, 12);
 	}
 
 	private static void cleanupEconomySidebarObjective(MinecraftServer server, UUID playerId) {
@@ -1839,7 +2067,7 @@ public class TeleportMenuMod implements ModInitializer {
 			return;
 		}
 
-		if (!selection.dimensionId().equals(player.serverLevel().dimension().location())) {
+		if (!selection.dimensionId().equals(player.level().dimension().location())) {
 			return;
 		}
 
@@ -1847,7 +2075,7 @@ public class TeleportMenuMod implements ModInitializer {
 	}
 
 	private static void spawnSelectionBox(ServerPlayer player, BlockPos a, BlockPos b) {
-		ServerLevel level = player.serverLevel();
+		ServerLevel level = (ServerLevel) player.level();
 		int minX = Math.min(a.getX(), b.getX());
 		int minY = Math.min(a.getY(), b.getY());
 		int minZ = Math.min(a.getZ(), b.getZ());
@@ -1920,7 +2148,7 @@ public class TeleportMenuMod implements ModInitializer {
 
 		if (state == null || !inTerritory.id().equals(state.territoryId())) {
 			if (inTerritory.ownerId().equals(player.getUUID())) {
-				player.displayClientMessage(Component.translatable("message.teleportmenu.territory_owner_welcome", inTerritory.name(), player.getGameProfile().getName()), true);
+				player.displayClientMessage(Component.translatable("message.teleportmenu.territory_owner_welcome", inTerritory.name(), player.getName().getString()), true);
 			} else {
 				player.displayClientMessage(Component.translatable("message.teleportmenu.territory_entered", inTerritory.ownerName()), true);
 			}
@@ -1935,7 +2163,7 @@ public class TeleportMenuMod implements ModInitializer {
 	}
 
 	private static TerritoryPoint findTerritoryContaining(ServerPlayer player) {
-		ResourceLocation currentDimension = player.serverLevel().dimension().location();
+		ResourceLocation currentDimension = player.level().dimension().location();
 		BlockPos pos = player.blockPosition();
 
 		for (List<TerritoryPoint> territories : PLAYER_TERRITORIES.values()) {
@@ -1953,7 +2181,7 @@ public class TeleportMenuMod implements ModInitializer {
 	}
 
 	private static boolean checkTerritoryPermission(ServerPlayer player, BlockPos pos, TerritoryPermission permission) {
-		TerritoryPoint territory = findTerritoryContaining(player.serverLevel().dimension().location(), pos);
+		TerritoryPoint territory = findTerritoryContaining(player.level().dimension().location(), pos);
 		if (territory == null) {
 			return true;
 		}
@@ -2177,7 +2405,7 @@ public class TeleportMenuMod implements ModInitializer {
 		ServerPlayNetworking.send(player, new TeleportMenuPayloads.EconomyStatePayload(
 			getLeaderboardEntries(player.server),
 			getAllShopTargets(),
-			PLAYER_SHOPS.getOrDefault(player.getUUID(), List.of()).size(),
+			countOwnedNormalShops(player.getUUID()),
 			PLAYER_SHOP_LIMITS.getOrDefault(player.getUUID(), DEFAULT_SHOP_LIMIT)
 		));
 	}
@@ -2189,14 +2417,14 @@ public class TeleportMenuMod implements ModInitializer {
 			String formatted = "0";
 			if (isEconomyReady()) {
 				try {
-					balance = economyGetMoney(online.getGameProfile().getName());
+					balance = economyGetMoney(online.getName().getString());
 					formatted = economyFormat(balance);
 				} catch (Exception ignored) {
 				}
 			}
 			entries.add(new TeleportMenuPayloads.EconomyLeaderboardEntry(
 				online.getUUID(),
-				online.getGameProfile().getName(),
+				online.getName().getString(),
 				balance,
 				formatted
 			));
@@ -2209,6 +2437,9 @@ public class TeleportMenuMod implements ModInitializer {
 		List<TeleportMenuPayloads.ShopTarget> shops = new ArrayList<>();
 		for (List<ShopPoint> ownerShops : PLAYER_SHOPS.values()) {
 			for (ShopPoint shop : ownerShops) {
+				if (isBoxShopShop(shop.id())) {
+					continue;
+				}
 				List<TeleportMenuPayloads.ShopGoodTarget> goods = shop.goods().stream()
 					.map(good -> new TeleportMenuPayloads.ShopGoodTarget(good.itemId(), good.name(), good.iconItemId(), good.stock(), good.price()))
 					.toList();
@@ -2216,6 +2447,35 @@ public class TeleportMenuMod implements ModInitializer {
 			}
 		}
 		return shops;
+	}
+
+	private static int countOwnedNormalShops(UUID ownerId) {
+		int count = 0;
+		for (ShopPoint shop : PLAYER_SHOPS.getOrDefault(ownerId, List.of())) {
+			if (!isBoxShopShop(shop.id())) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	private static boolean isBoxShopShop(UUID shopId) {
+		if (shopId == null) {
+			return false;
+		}
+		return BOX_SHOP_SHOP_IDS.contains(shopId);
+	}
+
+	private static BoxShopPoint findBoxShopByShopId(UUID shopId) {
+		if (shopId == null) {
+			return null;
+		}
+		for (BoxShopPoint boxShop : BOX_SHOPS.values()) {
+			if (boxShop.shopId().equals(shopId)) {
+				return boxShop;
+			}
+		}
+		return null;
 	}
 
 	private static ShopPoint findOwnedShop(ServerPlayer owner, UUID shopId) {
@@ -2239,6 +2499,404 @@ public class TeleportMenuMod implements ModInitializer {
 			}
 		}
 		return null;
+	}
+
+	private static BoxShopPoint findBoxShopByBlock(ResourceLocation dimensionId, BlockPos pos) {
+		if (dimensionId == null || pos == null) {
+			return null;
+		}
+		for (BoxShopPoint point : BOX_SHOPS.values()) {
+			if (!point.dimensionId().equals(dimensionId)) {
+				continue;
+			}
+			if (point.x() == pos.getX() && point.y() == pos.getY() && point.z() == pos.getZ()) {
+				return point;
+			}
+		}
+		return null;
+	}
+
+	private static BoxShopPoint findOwnedBoxShopAtFeet(ServerPlayer player) {
+		ResourceLocation dimensionId = player.level().dimension().location();
+		BoxShopPoint point = findBoxShopByBlock(dimensionId, player.blockPosition());
+		if (point != null && point.ownerId().equals(player.getUUID())) {
+			return point;
+		}
+
+		point = findBoxShopByBlock(dimensionId, player.blockPosition().below());
+		if (point != null && point.ownerId().equals(player.getUUID())) {
+			return point;
+		}
+
+		return null;
+	}
+
+	private static net.minecraft.world.entity.Entity findEntityByUuid(MinecraftServer server, UUID entityId) {
+		if (server == null || entityId == null) {
+			return null;
+		}
+		for (ServerLevel level : server.getAllLevels()) {
+			net.minecraft.world.entity.Entity found = level.getEntity(entityId);
+			if (found != null) {
+				return found;
+			}
+		}
+		return null;
+	}
+
+	private static String boxShopHologramTag(UUID boxShopId) {
+		return "teleportmenu_boxshop_" + boxShopId.toString().replace("-", "");
+	}
+
+	private static double[] boxShopHologramPos(BoxShopPoint boxShop, ServerLevel level) {
+		BlockPos pos = boxShop.blockPos();
+		Direction facing = Direction.SOUTH;
+		if (level != null) {
+			var state = level.getBlockState(pos);
+			if (state.is(Blocks.ENDER_CHEST) && state.hasProperty(EnderChestBlock.FACING)) {
+				facing = state.getValue(EnderChestBlock.FACING);
+			}
+		}
+
+		double x = pos.getX() + 0.5D + facing.getStepX() * 0.74D;
+		double y = pos.getY() + 0.92D;
+		double z = pos.getZ() + 0.5D + facing.getStepZ() * 0.74D;
+		return new double[] { x, y, z };
+	}
+
+	private static Display.TextDisplay findBoxShopHologram(MinecraftServer server, BoxShopPoint boxShop, ServerLevel level) {
+		if (server == null || boxShop == null || level == null) {
+			return null;
+		}
+
+		UUID mappedId = BOX_SHOP_HOLOGRAMS.get(boxShop.id());
+		if (mappedId != null) {
+			net.minecraft.world.entity.Entity entity = findEntityByUuid(server, mappedId);
+			if (entity instanceof Display.TextDisplay display && !display.isRemoved()) {
+				return display;
+			}
+			BOX_SHOP_HOLOGRAMS.remove(boxShop.id());
+		}
+
+		BlockPos pos = boxShop.blockPos();
+		AABB scanArea = new AABB(pos).inflate(1.5D, 3.0D, 1.5D);
+		String tag = boxShopHologramTag(boxShop.id());
+		List<Display.TextDisplay> displays = level.getEntitiesOfClass(
+			Display.TextDisplay.class,
+			scanArea,
+			display -> display.getTags().contains(BOX_SHOP_HOLOGRAM_TAG) && display.getTags().contains(tag)
+		);
+		if (displays.isEmpty()) {
+			return null;
+		}
+
+		Display.TextDisplay first = displays.get(0);
+		BOX_SHOP_HOLOGRAMS.put(boxShop.id(), first.getUUID());
+		for (int i = 1; i < displays.size(); i++) {
+			displays.get(i).discard();
+		}
+		return first;
+	}
+
+	private static Display.TextDisplay dedupeBoxShopHologramsAtPos(BoxShopPoint boxShop, ServerLevel level, Display.TextDisplay preferred) {
+		if (boxShop == null || level == null) {
+			return preferred;
+		}
+
+		double[] hologramPos = boxShopHologramPos(boxShop, level);
+		double x = hologramPos[0];
+		double y = hologramPos[1];
+		double z = hologramPos[2];
+		AABB exactArea = new AABB(
+			x - 0.45D, y - 0.9D, z - 0.45D,
+			x + 0.45D, y + 0.9D, z + 0.45D
+		);
+		String tag = boxShopHologramTag(boxShop.id());
+		List<Display.TextDisplay> nearby = level.getEntitiesOfClass(
+			Display.TextDisplay.class,
+			exactArea,
+			entity -> entity.getTags().contains(BOX_SHOP_HOLOGRAM_TAG)
+		);
+		if (nearby.isEmpty()) {
+			return preferred;
+		}
+
+		Display.TextDisplay keeper = preferred;
+		if (keeper == null || keeper.isRemoved()) {
+			for (Display.TextDisplay candidate : nearby) {
+				if (candidate.getTags().contains(tag)) {
+					keeper = candidate;
+					break;
+				}
+			}
+			if (keeper == null) {
+				keeper = nearby.get(0);
+			}
+		}
+
+		for (Display.TextDisplay display : nearby) {
+			if (display != keeper) {
+				display.discard();
+			}
+		}
+
+		if (!keeper.getTags().contains(BOX_SHOP_HOLOGRAM_TAG)) {
+			keeper.addTag(BOX_SHOP_HOLOGRAM_TAG);
+		}
+		if (!keeper.getTags().contains(tag)) {
+			keeper.addTag(tag);
+		}
+		BOX_SHOP_HOLOGRAMS.put(boxShop.id(), keeper.getUUID());
+		return keeper;
+	}
+
+	private static void cleanupBoxShopDisplayArtifacts(BoxShopPoint boxShop, ServerLevel level, @org.jetbrains.annotations.Nullable UUID keeperId) {
+		if (boxShop == null || level == null) {
+			return;
+		}
+
+		String tag = boxShopHologramTag(boxShop.id());
+		String shopName = sanitizeBoxShopName(boxShop.name());
+		BlockPos pos = boxShop.blockPos();
+		AABB area = new AABB(pos).inflate(2.0D, 2.2D, 2.0D);
+
+		for (Display display : level.getEntitiesOfClass(Display.class, area, entity -> true)) {
+			if (keeperId != null && keeperId.equals(display.getUUID())) {
+				continue;
+			}
+
+			boolean tagged = display.getTags().contains(BOX_SHOP_HOLOGRAM_TAG) || display.getTags().contains(tag);
+			boolean likelyOldText = false;
+			if (display instanceof Display.TextDisplay textDisplay) {
+				String raw = textDisplay.getText().getString();
+				likelyOldText = raw.contains("商品数量") || raw.contains("Goods") || raw.startsWith(shopName);
+			}
+
+			if (tagged || likelyOldText) {
+				display.discard();
+			}
+		}
+	}
+
+	private static boolean isLegacyBoxShopDisplay(Display display) {
+		if (display == null || display.isRemoved()) {
+			return false;
+		}
+		for (String tag : display.getTags()) {
+			if (BOX_SHOP_HOLOGRAM_TAG.equals(tag) || tag.startsWith("teleportmenu_boxshop_")) {
+				return true;
+			}
+		}
+		if (display instanceof Display.TextDisplay textDisplay) {
+			String raw = textDisplay.getText().getString();
+			if (raw == null) {
+				return false;
+			}
+			return raw.contains("商品数量:") || raw.contains("Goods:");
+		}
+		return false;
+	}
+
+	private static void cleanupLegacyBoxShopDisplaysInChunk(ServerLevel level, LevelChunk chunk) {
+		if (level == null || chunk == null) {
+			return;
+		}
+		AABB area = new AABB(
+			chunk.getPos().getMinBlockX(), level.getMinBuildHeight(), chunk.getPos().getMinBlockZ(),
+			chunk.getPos().getMaxBlockX() + 1D, level.getMaxBuildHeight(), chunk.getPos().getMaxBlockZ() + 1D
+		);
+		for (Display.TextDisplay textDisplay : level.getEntitiesOfClass(Display.TextDisplay.class, area, TeleportMenuMod::isLegacyBoxShopDisplay)) {
+			textDisplay.discard();
+		}
+	}
+
+	private static void cleanupAllLegacyBoxShopDisplays(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		for (ServerLevel level : server.getAllLevels()) {
+			for (Display.TextDisplay textDisplay : level.getEntitiesOfClass(
+				Display.TextDisplay.class,
+				new AABB(-3.0E7D, level.getMinBuildHeight(), -3.0E7D, 3.0E7D, level.getMaxBuildHeight(), 3.0E7D),
+				TeleportMenuMod::isLegacyBoxShopDisplay
+			)) {
+				textDisplay.discard();
+			}
+		}
+	}
+
+	private static void removeBoxShopHologram(MinecraftServer server, BoxShopPoint boxShop) {
+		if (server == null || boxShop == null) {
+			return;
+		}
+
+		UUID mappedId = BOX_SHOP_HOLOGRAMS.remove(boxShop.id());
+		if (mappedId != null) {
+			net.minecraft.world.entity.Entity entity = findEntityByUuid(server, mappedId);
+			if (entity instanceof Display.TextDisplay display) {
+				display.discard();
+			}
+		}
+
+		ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, boxShop.dimensionId());
+		ServerLevel level = server.getLevel(dimensionKey);
+		if (level == null) {
+			return;
+		}
+
+		AABB scanArea = new AABB(boxShop.blockPos()).inflate(1.5D, 3.0D, 1.5D);
+		String tag = boxShopHologramTag(boxShop.id());
+		for (Display.TextDisplay display : level.getEntitiesOfClass(
+			Display.TextDisplay.class,
+			scanArea,
+			entity -> entity.getTags().contains(BOX_SHOP_HOLOGRAM_TAG) && entity.getTags().contains(tag)
+		)) {
+			display.discard();
+		}
+	}
+
+	private static Component buildBoxShopHologramText(BoxShopPoint boxShop, ShopPoint shop) {
+		int goodsCount = 0;
+		if (shop != null) {
+			for (ShopGood good : shop.goods()) {
+				goodsCount += Math.max(0, good.stock());
+			}
+		}
+
+		return Component.literal(sanitizeBoxShopName(boxShop.name()) + "\n\u5546\u54c1\u6570\u91cf: " + goodsCount);
+	}
+
+	private static void refreshBoxShopHologram(MinecraftServer server, BoxShopPoint boxShop) {
+		// Legacy server-side floating text is retired.
+		// We keep this hook to aggressively clean residual display entities created by older versions.
+		removeBoxShopHologram(server, boxShop);
+		if (server == null || boxShop == null) {
+			return;
+		}
+		ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, boxShop.dimensionId());
+		ServerLevel level = server.getLevel(dimensionKey);
+		if (level != null) {
+			cleanupBoxShopDisplayArtifacts(boxShop, level, null);
+		}
+	}
+
+	private static void ensureBoxShopBlock(MinecraftServer server, BoxShopPoint boxShop) {
+		if (server == null || boxShop == null) {
+			return;
+		}
+		ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, boxShop.dimensionId());
+		ServerLevel level = server.getLevel(dimensionKey);
+		if (level == null) {
+			return;
+		}
+		BlockPos pos = new BlockPos(boxShop.x(), boxShop.y(), boxShop.z());
+		if (level.getBlockState(pos).is(Blocks.ENDER_CHEST)) {
+			return;
+		}
+		if (!level.getBlockState(pos).canBeReplaced()) {
+			return;
+		}
+		level.setBlockAndUpdate(pos, Blocks.ENDER_CHEST.defaultBlockState());
+	}
+
+	private static void updateBoxShopBlock(MinecraftServer server, UUID boxShopId) {
+		BoxShopPoint boxShop = BOX_SHOPS.get(boxShopId);
+		if (boxShop == null) {
+			return;
+		}
+		ensureBoxShopBlock(server, boxShop);
+	}
+
+	private static void removeBoxShop(MinecraftServer server, BoxShopPoint boxShop) {
+		removeBoxShopHologram(server, boxShop);
+		if (server != null) {
+			ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, boxShop.dimensionId());
+			ServerLevel level = server.getLevel(dimensionKey);
+			if (level != null) {
+				BlockPos pos = boxShop.blockPos();
+				if (level.getBlockState(pos).is(Blocks.ENDER_CHEST)) {
+					level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+				}
+			}
+		}
+
+		List<ShopPoint> ownerShops = PLAYER_SHOPS.get(boxShop.ownerId());
+		if (ownerShops != null) {
+			ownerShops.removeIf(shop -> shop.id().equals(boxShop.shopId()));
+		}
+		BOX_SHOP_SHOP_IDS.remove(boxShop.shopId());
+		BOX_SHOPS.remove(boxShop.id());
+		persistDataIfPossible();
+	}
+
+	private static void openBoxShop(ServerPlayer player, BoxShopPoint boxShop) {
+		ShopPoint shop = findAnyShop(boxShop.shopId());
+		if (shop == null) {
+			sendError(player, "message.teleportmenu.shop_not_found");
+			return;
+		}
+
+		if (!ServerPlayNetworking.canSend(player, TeleportMenuPayloads.OpenBoxShopPayload.TYPE)) {
+			sendError(player, "message.teleportmenu.client_missing");
+			return;
+		}
+
+		List<TeleportMenuPayloads.ShopGoodTarget> goods = shop.goods().stream()
+			.map(good -> new TeleportMenuPayloads.ShopGoodTarget(good.itemId(), good.name(), good.iconItemId(), good.stock(), good.price()))
+			.toList();
+		boolean owner = shop.ownerId().equals(player.getUUID());
+
+		ServerPlayNetworking.send(player, new TeleportMenuPayloads.OpenBoxShopPayload(
+			new TeleportMenuPayloads.BoxShopTarget(
+				boxShop.id(),
+				shop.id(),
+				shop.ownerId(),
+				shop.ownerName(),
+				boxShop.name(),
+				owner,
+				owner && !boxShop.named(),
+				goods
+			)
+		));
+	}
+
+	private static void handleQueryBoxShopHud(ServerPlayer player, int x, int y, int z) {
+		if (player == null || player.server == null) {
+			return;
+		}
+		if (!ServerPlayNetworking.canSend(player, TeleportMenuPayloads.BoxShopHudPayload.TYPE)) {
+			return;
+		}
+
+		BlockPos pos = new BlockPos(x, y, z);
+		BlockPos playerPos = player.blockPosition();
+		if (playerPos.distSqr(pos) > 144D) {
+			ServerPlayNetworking.send(player, new TeleportMenuPayloads.BoxShopHudPayload(false, "", 0));
+			return;
+		}
+
+		BoxShopPoint boxShop = findBoxShopByBlock(player.level().dimension().location(), pos);
+		if (boxShop == null) {
+			ServerPlayNetworking.send(player, new TeleportMenuPayloads.BoxShopHudPayload(false, "", 0));
+			return;
+		}
+
+		ShopPoint shop = findAnyShop(boxShop.shopId());
+		if (shop == null) {
+			ServerPlayNetworking.send(player, new TeleportMenuPayloads.BoxShopHudPayload(false, "", 0));
+			return;
+		}
+
+		int goodsCount = 0;
+		for (ShopGood good : shop.goods()) {
+			goodsCount += Math.max(0, good.stock());
+		}
+
+		ServerPlayNetworking.send(player, new TeleportMenuPayloads.BoxShopHudPayload(
+			true,
+			sanitizeBoxShopName(boxShop.name()),
+			goodsCount
+		));
 	}
 
 	private static int countItemInInventory(Inventory inventory, Item item) {
@@ -2320,27 +2978,49 @@ public class TeleportMenuMod implements ModInitializer {
 		return Component.translatable(key, args).withStyle(color);
 	}
 
+	private static void closeTeleportMenuIfOpen(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+		if (!ServerPlayNetworking.canSend(player, TeleportMenuPayloads.CloseMenuPayload.TYPE)) {
+			return;
+		}
+		ServerPlayNetworking.send(player, new TeleportMenuPayloads.CloseMenuPayload());
+	}
+
 	private static void sendSuccess(ServerPlayer player, String key, Object... args) {
+		closeTeleportMenuIfOpen(player);
 		player.sendSystemMessage(coloredTranslatable(ChatFormatting.GREEN, key, args));
 	}
 
 	private static void sendError(ServerPlayer player, String key, Object... args) {
+		closeTeleportMenuIfOpen(player);
 		player.sendSystemMessage(coloredTranslatable(ChatFormatting.RED, key, args));
 	}
 
 	private static void sendWarn(ServerPlayer player, String key, Object... args) {
+		closeTeleportMenuIfOpen(player);
 		player.sendSystemMessage(coloredTranslatable(ChatFormatting.YELLOW, key, args));
 	}
 
 	private static void sendSuccess(CommandSourceStack source, String key, Object... args) {
+		if (source.getEntity() instanceof ServerPlayer player) {
+			closeTeleportMenuIfOpen(player);
+		}
 		source.sendSuccess(() -> coloredTranslatable(ChatFormatting.GREEN, key, args), false);
 	}
 
 	private static void sendError(CommandSourceStack source, String key, Object... args) {
+		if (source.getEntity() instanceof ServerPlayer player) {
+			closeTeleportMenuIfOpen(player);
+		}
 		source.sendFailure(coloredTranslatable(ChatFormatting.RED, key, args));
 	}
 
 	private static void sendWarn(CommandSourceStack source, String key, Object... args) {
+		if (source.getEntity() instanceof ServerPlayer player) {
+			closeTeleportMenuIfOpen(player);
+		}
 		source.sendSuccess(() -> coloredTranslatable(ChatFormatting.YELLOW, key, args), false);
 	}
 
@@ -2414,6 +3094,43 @@ public class TeleportMenuMod implements ModInitializer {
 		private double price() { return this.price; }
 		private void setStock(int stock) { this.stock = Math.max(0, stock); }
 		private void setPrice(double price) { this.price = Math.max(0D, price); }
+	}
+
+	private record BoxShopPoint(
+		UUID id,
+		UUID shopId,
+		UUID ownerId,
+		String ownerName,
+		String name,
+		ResourceLocation dimensionId,
+		int x,
+		int y,
+		int z,
+		boolean named
+	) {
+		private BoxShopPoint {
+			ownerName = ownerName == null ? "" : ownerName;
+			name = sanitizeBoxShopName(name);
+		}
+
+		private BoxShopPoint withName(String nextName, boolean nextNamed) {
+			return new BoxShopPoint(
+				this.id,
+				this.shopId,
+				this.ownerId,
+				this.ownerName,
+				nextName,
+				this.dimensionId,
+				this.x,
+				this.y,
+				this.z,
+				nextNamed
+			);
+		}
+
+		private BlockPos blockPos() {
+			return new BlockPos(this.x, this.y, this.z);
+		}
 	}
 
 	private static final class TerritoryPoint {

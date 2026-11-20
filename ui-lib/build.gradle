@@ -40,13 +40,22 @@ processResources {
 		expand "version": inputs.properties.version
 	}
 
+	from("${rootDir}/src/main/resources/assets/teleportmenu/lang") {
+		into "assets/teleportmenu/lang"
+	}
+
 	from("${rootDir}/src/main/resources/assets/teleportmenu/icon.png") {
 		into "assets/teleportmenu"
+	}
+
+	from("${rootDir}/src/main/resources/assets/teleportmenu/textures") {
+		into "assets/teleportmenu/textures"
 	}
 }
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
+	it.options.encoding = "UTF-8"
 }
 
 java {

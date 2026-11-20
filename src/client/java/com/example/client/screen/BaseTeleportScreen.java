@@ -12,6 +12,7 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 abstract class BaseTeleportScreen extends BaseOwoScreen<FlowLayout> {
@@ -48,6 +49,13 @@ abstract class BaseTeleportScreen extends BaseOwoScreen<FlowLayout> {
 	}
 
 	protected io.wispforest.owo.ui.core.Component menuButton(Component text, ItemStack icon, Runnable onPress) {
+		OreMenuButtonWidget widget = new OreMenuButtonWidget(MAIN_BUTTON_WIDTH, BUTTON_HEIGHT, text, icon, button -> onPress.run());
+		var wrapped = Components.wrapVanillaWidget(widget);
+		wrapped.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));
+		return wrapped;
+	}
+
+	protected io.wispforest.owo.ui.core.Component menuButton(Component text, ResourceLocation icon, Runnable onPress) {
 		OreMenuButtonWidget widget = new OreMenuButtonWidget(MAIN_BUTTON_WIDTH, BUTTON_HEIGHT, text, icon, button -> onPress.run());
 		var wrapped = Components.wrapVanillaWidget(widget);
 		wrapped.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));

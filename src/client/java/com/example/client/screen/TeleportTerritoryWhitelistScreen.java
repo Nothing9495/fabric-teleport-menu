@@ -4,6 +4,7 @@ import com.example.client.i18n.ClientI18n;
 
 import com.example.client.widget.OrePlayerEntryButtonWidget;
 import com.example.client.widget.OreToggleSliderWidget;
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
@@ -15,8 +16,6 @@ import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -90,7 +89,7 @@ public class TeleportTerritoryWhitelistScreen extends BaseTeleportScreen {
 		whitelistList.surface(Surface.BLANK);
 
 		rootComponent.child(whitelistList);
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

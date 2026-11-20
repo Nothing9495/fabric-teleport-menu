@@ -6,10 +6,9 @@ import com.example.client.model.ItemManageEntry;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
+import com.example.client.widget.TeleportIcons;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -55,7 +54,7 @@ public class TeleportItemDisableConfirmScreen extends BaseTeleportScreen {
 			alreadyDisabled
 				? ClientI18n.tr("screen.teleportmenu.admin.items.enable")
 				: ClientI18n.tr("screen.teleportmenu.admin.items.disable"),
-			new ItemStack(Items.BARRIER),
+			TeleportIcons.CONFIRM,
 			() -> {
 			if (!disableSupported) {
 				if (this.minecraft != null) {
@@ -76,7 +75,7 @@ public class TeleportItemDisableConfirmScreen extends BaseTeleportScreen {
 				this.minecraft.setScreen(new TeleportItemManageScreen(this.parent.parentScreen(), nextState, this.parent.searchQuery()));
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.items.cancel"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.items.cancel"), TeleportIcons.CANCEL, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

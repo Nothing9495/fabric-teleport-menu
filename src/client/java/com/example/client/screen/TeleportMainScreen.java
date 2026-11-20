@@ -3,14 +3,14 @@ package com.example.client.screen;
 import com.example.client.i18n.ClientI18n;
 
 import com.example.client.widget.OreCardButtonWidget;
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 import java.util.Set;
@@ -65,22 +65,22 @@ public class TeleportMainScreen extends BaseTeleportScreen {
 
 		FlowLayout firstRow = Containers.horizontalFlow(Sizing.content(), Sizing.fixed(CARD_HEIGHT));
 		firstRow.gap(CARD_GAP);
-		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.players"), new ItemStack(Items.PLAYER_HEAD), () -> {
+		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.players"), TeleportIcons.PLAYERS, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportPlayerListScreen(this.targets, this));
 			}
 		}));
-		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.homes"), new ItemStack(Items.RED_BED), () -> {
+		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.homes"), TeleportIcons.HOMES, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportHomeScreen(this.homes, this));
 			}
 		}));
-		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.territories"), new ItemStack(Items.GRASS_BLOCK), () -> {
+		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.territories"), TeleportIcons.TERRITORIES, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportTerritoryScreen(this.territories, this.targets, this));
 			}
 		}));
-		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.economy"), new ItemStack(Items.GOLD_INGOT), () -> {
+		firstRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.economy"), TeleportIcons.ECONOMY, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportEconomyScreen(this));
 			}
@@ -90,17 +90,17 @@ public class TeleportMainScreen extends BaseTeleportScreen {
 		FlowLayout secondRow = Containers.horizontalFlow(Sizing.content(), Sizing.fixed(CARD_HEIGHT));
 		secondRow.gap(CARD_GAP);
 		if (this.admin) {
-			secondRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.admin"), new ItemStack(Items.COMMAND_BLOCK), () -> {
+			secondRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.admin"), TeleportIcons.ADMIN, () -> {
 				if (this.minecraft != null) {
 					this.minecraft.setScreen(new TeleportAdminScreen(this, this.disabledItemIds));
 				}
 			}));
 		}
-		secondRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.close"), new ItemStack(Items.BARRIER), this::onClose));
+		secondRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.close"), TeleportIcons.CLOSE, this::onClose));
 		rootComponent.child(secondRow);
 	}
 
-	private io.wispforest.owo.ui.core.Component cardButton(Component text, ItemStack icon, Runnable onPress) {
+	private io.wispforest.owo.ui.core.Component cardButton(Component text, ResourceLocation icon, Runnable onPress) {
 		OreCardButtonWidget widget = new OreCardButtonWidget(CARD_WIDTH, CARD_HEIGHT, text, icon, button -> onPress.run());
 		var wrapped = Components.wrapVanillaWidget(widget);
 		wrapped.sizing(Sizing.fixed(CARD_WIDTH), Sizing.fixed(CARD_HEIGHT));

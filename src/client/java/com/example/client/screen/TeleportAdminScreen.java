@@ -1,12 +1,11 @@
 package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
+import com.example.client.widget.TeleportIcons;
 
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.Set;
 
@@ -29,21 +28,21 @@ public class TeleportAdminScreen extends BaseTeleportScreen {
 		this.configureRoot(rootComponent);
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.admin.title")).shadow(true));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.item_manage"), new ItemStack(Items.CHEST), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.item_manage"), TeleportIcons.INVENTORY, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportItemManageScreen(this, this.disabledItemIds, ""));
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy"), new ItemStack(Items.GOLD_INGOT), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.admin.economy"), TeleportIcons.COIN, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportEconomyManageScreen(this, this.mainScreen.targets()));
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.mainScreen);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), new ItemStack(Items.BARRIER), this::onClose));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.close"), TeleportIcons.CLOSE, this::onClose));
 	}
 }

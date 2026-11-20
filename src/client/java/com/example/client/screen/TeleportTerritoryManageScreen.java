@@ -4,6 +4,7 @@ import com.example.client.i18n.ClientI18n;
 
 import com.example.client.widget.OreToggleSliderWidget;
 import com.example.client.widget.OreSmallActionButtonWidget;
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
@@ -12,8 +13,6 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,13 +45,13 @@ public class TeleportTerritoryManageScreen extends BaseTeleportScreen {
 		rootComponent.child(permissionRow(ClientI18n.tr("screen.teleportmenu.territories.permission.damage_entities"), this.territory.damageEntitiesAllowed(), "damage_entities"));
 		rootComponent.child(permissionRow(ClientI18n.tr("screen.teleportmenu.territories.permission.block_use"), this.territory.blockUseAllowed(), "block_use"));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.whitelist"), new ItemStack(Items.WRITABLE_BOOK), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.territories.whitelist"), TeleportIcons.WHITELIST, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportTerritoryWhitelistScreen(this.territory, this.players, this));
 			}
 		}));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

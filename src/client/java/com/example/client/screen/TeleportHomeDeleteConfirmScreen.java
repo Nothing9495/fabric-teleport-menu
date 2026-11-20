@@ -2,13 +2,12 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.FlowLayout;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 public class TeleportHomeDeleteConfirmScreen extends BaseTeleportScreen {
 	private final TeleportMenuPayloads.HomeTarget home;
@@ -32,13 +31,13 @@ public class TeleportHomeDeleteConfirmScreen extends BaseTeleportScreen {
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_title")).shadow(true));
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_desc", this.home.name())));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_yes"), new ItemStack(Items.LAVA_BUCKET), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_yes"), TeleportIcons.CONFIRM, () -> {
 			ClientPlayNetworking.send(new TeleportMenuPayloads.DeleteHomeRequestPayload(this.home.id()));
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent.parentScreen());
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_no"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.delete_confirm_no"), TeleportIcons.CANCEL, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

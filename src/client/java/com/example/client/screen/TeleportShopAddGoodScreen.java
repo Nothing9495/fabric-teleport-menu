@@ -1,48 +1,54 @@
 package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
-
 import com.example.client.widget.OreIconListEntryButtonWidget;
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.ScrollContainer;
-import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.Item;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 public class TeleportShopAddGoodScreen extends BaseTeleportScreen {
-	private static final int LIST_HEIGHT = 120;
-
 	private final TeleportShopEditScreen parent;
 	private final TeleportMenuPayloads.ShopTarget shop;
-	private final List<ItemChoice> itemChoices;
-	private String searchQuery = "";
-	private String amountInput = "1";
-	private String priceInput = "10";
-	private String selectedItemId = "";
-	private FlowLayout listLayout;
+	private final ItemStack selectedStack;
+	private final String selectedItemId;
+	private final String selectedItemName;
+	private final int selectedStackCount;
+
+	private String amountInput;
+	private String priceInput;
 
 	public TeleportShopAddGoodScreen(TeleportShopEditScreen parent, TeleportMenuPayloads.ShopTarget shop) {
+		this(parent, shop, ItemStack.EMPTY, "1", "10");
+	}
+
+	public TeleportShopAddGoodScreen(
+		TeleportShopEditScreen parent,
+		TeleportMenuPayloads.ShopTarget shop,
+		ItemStack selectedStack,
+		String amountInput,
+		String priceInput
+	) {
 		super(ClientI18n.tr("screen.teleportmenu.shop.goods.add"));
 		this.parent = parent;
 		this.shop = shop;
-		this.itemChoices = buildItemChoices();
+		this.selectedStack = selectedStack == null ? ItemStack.EMPTY : selectedStack.copy();
+		this.selectedStackCount = this.selectedStack.isEmpty() ? 0 : this.selectedStack.getCount();
+		if (!this.selectedStack.isEmpty()) {
+			this.selectedItemId = BuiltInRegistries.ITEM.getKey(this.selectedStack.getItem()).toString();
+			this.selectedItemName = this.selectedStack.getHoverName().getString();
+		} else {
+			this.selectedItemId = "";
+			this.selectedItemName = "";
+		}
+		this.amountInput = amountInput == null || amountInput.isBlank() ? "1" : amountInput;
+		this.priceInput = priceInput == null || priceInput.isBlank() ? "10" : priceInput;
 	}
 
 	@Override
@@ -51,26 +57,32 @@ public class TeleportShopAddGoodScreen extends BaseTeleportScreen {
 		rootComponent.gap(6);
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.goods.add")).shadow(true));
 
-		TextBoxComponent search = Components.textBox(Sizing.fixed(MAIN_BUTTON_WIDTH));
-		search.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));
-		search.setMaxLength(80);
-		search.text(this.searchQuery);
-		search.onChanged().subscribe(value -> {
-			this.searchQuery = value == null ? "" : value;
-			this.refreshList();
-		});
-		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.search")));
-		rootComponent.child(search);
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.goods.select"), TeleportIcons.SELECT, () -> {
+			if (this.minecraft != null) {
+				this.minecraft.setScreen(new TeleportShopGoodPickerScreen(this.parent, this.shop, this.selectedStack, this.amountInput, this.priceInput));
+			}
+		}));
 
-		this.listLayout = Containers.verticalFlow(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.content());
-		this.listLayout.gap(3);
-		this.refreshList();
-
-		ScrollContainer<FlowLayout> scroll = Containers.verticalScroll(Sizing.fixed(MAIN_BUTTON_WIDTH + 4), Sizing.fixed(LIST_HEIGHT), this.listLayout);
-		scroll.scrollbar(ScrollContainer.Scrollbar.flat(Color.ofArgb(0x90C7D5ED)));
-		scroll.scrollbarThiccness(4);
-		scroll.surface(Surface.BLANK);
-		rootComponent.child(scroll);
+		if (this.selectedItemId.isBlank()) {
+			rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.goods.select_empty")));
+			rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.goods.select_hint")));
+		} else {
+			OreIconListEntryButtonWidget widget = new OreIconListEntryButtonWidget(
+				MAIN_BUTTON_WIDTH,
+				PLAYER_ENTRY_HEIGHT,
+				new ItemStack(this.selectedStack.getItem()),
+				this.selectedItemName,
+				ClientI18n.tr("screen.teleportmenu.shop.goods.selected_id", this.selectedItemId).getString(),
+				String.valueOf(this.selectedStackCount),
+				ClientI18n.tr("screen.teleportmenu.shop.goods.stock_unit").getString(),
+				button -> {}
+			);
+			widget.active = false;
+			var wrapped = Components.wrapVanillaWidget(widget);
+			wrapped.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(PLAYER_ENTRY_HEIGHT));
+			rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.goods.selected", this.selectedItemName)));
+			rootComponent.child(wrapped);
+		}
 
 		TextBoxComponent amount = Components.textBox(Sizing.fixed(MAIN_BUTTON_WIDTH));
 		amount.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(BUTTON_HEIGHT));
@@ -88,8 +100,8 @@ public class TeleportShopAddGoodScreen extends BaseTeleportScreen {
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.goods.price_input")));
 		rootComponent.child(price);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.goods.add_confirm"), new ItemStack(Items.EMERALD), () -> submit()));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.goods.add_confirm"), TeleportIcons.CONFIRM, () -> submit()));
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}
@@ -113,98 +125,14 @@ public class TeleportShopAddGoodScreen extends BaseTeleportScreen {
 			return;
 		}
 
+		ResourceLocation itemKey = ResourceLocation.tryParse(this.selectedItemId);
+		if (itemKey == null || !BuiltInRegistries.ITEM.containsKey(itemKey)) {
+			return;
+		}
+
 		ClientPlayNetworking.send(new TeleportMenuPayloads.AddShopGoodRequestPayload(this.shop.id(), this.selectedItemId, stock, price));
 		if (this.minecraft != null) {
 			this.minecraft.setScreen(this.parent);
-		}
-	}
-
-	private void refreshList() {
-		if (this.listLayout == null) {
-			return;
-		}
-		this.listLayout.clearChildren();
-
-		List<ItemChoice> choices = filteredChoices();
-		if (choices.isEmpty()) {
-			this.listLayout.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.goods.empty")));
-			return;
-		}
-
-		for (ItemChoice choice : choices) {
-			String rightTop = String.valueOf(choice.count);
-			String rightBottom = ClientI18n.tr("screen.teleportmenu.shop.goods.stock_unit").getString();
-			OreIconListEntryButtonWidget widget = new OreIconListEntryButtonWidget(
-				MAIN_BUTTON_WIDTH,
-				PLAYER_ENTRY_HEIGHT,
-				choice.stack,
-				choice.name,
-				choice.id,
-				rightTop,
-				rightBottom,
-				button -> this.selectedItemId = choice.id
-			);
-			if (choice.id.equals(this.selectedItemId)) {
-				widget.setMessage(Component.literal("* " + choice.name));
-			}
-			var wrapped = Components.wrapVanillaWidget(widget);
-			wrapped.sizing(Sizing.fixed(MAIN_BUTTON_WIDTH), Sizing.fixed(PLAYER_ENTRY_HEIGHT));
-			this.listLayout.child(wrapped);
-		}
-	}
-
-	private List<ItemChoice> filteredChoices() {
-		String needle = this.searchQuery == null ? "" : this.searchQuery.trim().toLowerCase(Locale.ROOT);
-		if (needle.isBlank()) {
-			return this.itemChoices;
-		}
-		return this.itemChoices.stream().filter(choice ->
-			choice.name.toLowerCase(Locale.ROOT).contains(needle)
-				|| choice.id.toLowerCase(Locale.ROOT).contains(needle)
-		).toList();
-	}
-
-	private List<ItemChoice> buildItemChoices() {
-		if (this.minecraft == null || this.minecraft.player == null) {
-			return List.of();
-		}
-
-		Map<String, Integer> counts = new LinkedHashMap<>();
-		for (ItemStack stack : this.minecraft.player.getInventory().items) {
-			if (stack.isEmpty()) {
-				continue;
-			}
-			String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-			if ("minecraft:air".equals(id)) {
-				continue;
-			}
-			counts.merge(id, stack.getCount(), Integer::sum);
-		}
-
-		List<ItemChoice> result = new ArrayList<>();
-		for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-			Item item = BuiltInRegistries.ITEM.getOptional(net.minecraft.resources.ResourceLocation.parse(entry.getKey())).orElse(Items.AIR);
-			if (item == Items.AIR) {
-				continue;
-			}
-			ItemStack icon = new ItemStack(item);
-			result.add(new ItemChoice(entry.getKey(), icon.getHoverName().getString(), icon, entry.getValue()));
-		}
-		result.sort(Comparator.comparing(choice -> choice.id));
-		return result;
-	}
-
-	private static final class ItemChoice {
-		private final String id;
-		private final String name;
-		private final ItemStack stack;
-		private final int count;
-
-		private ItemChoice(String id, String name, ItemStack stack, int count) {
-			this.id = id;
-			this.name = name;
-			this.stack = stack;
-			this.count = count;
 		}
 	}
 }

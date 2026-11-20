@@ -5,6 +5,7 @@ import com.example.client.i18n.ClientI18n;
 import com.example.client.TeleportMenuClient;
 import com.example.client.widget.OreIconListEntryButtonWidget;
 import com.example.client.widget.OreSmallActionButtonWidget;
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
@@ -91,19 +92,19 @@ public class TeleportShopManageScreen extends BaseTeleportScreen {
 		scroll.surface(Surface.BLANK);
 		rootComponent.child(scroll);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.manage.create"), new ItemStack(Items.CRAFTING_TABLE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.manage.create"), TeleportIcons.ADD, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new TeleportShopCreateScreen(this));
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.manage.expand"), new ItemStack(Items.GOLD_BLOCK), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.manage.expand"), TeleportIcons.EXPAND, () -> {
 			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new TeleportMenuPayloads.ExpandShopLimitRequestPayload());
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this);
 			}
 		}));
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

@@ -4,6 +4,7 @@ import com.example.client.i18n.ClientI18n;
 
 import com.example.client.TeleportMenuClient;
 import com.example.client.widget.OreIconListEntryButtonWidget;
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
@@ -68,7 +69,7 @@ public class TeleportEconomyLeaderboardScreen extends BaseTeleportScreen {
 		scroll.surface(Surface.BLANK);
 		rootComponent.child(scroll);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

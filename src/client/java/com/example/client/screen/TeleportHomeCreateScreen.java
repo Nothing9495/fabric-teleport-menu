@@ -2,6 +2,7 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -11,8 +12,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 public class TeleportHomeCreateScreen extends BaseTeleportScreen {
 	private final TeleportHomeScreen parent;
@@ -50,7 +49,7 @@ public class TeleportHomeCreateScreen extends BaseTeleportScreen {
 		textBox.onChanged().subscribe(value -> this.inputName = value);
 		rootComponent.child(textBox);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.confirm_create"), new ItemStack(Items.LIME_CONCRETE), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.homes.confirm_create"), TeleportIcons.CONFIRM, () -> {
 			String name = this.inputName.trim();
 			if (name.isEmpty()) {
 				if (this.minecraft != null && this.minecraft.player != null) {
@@ -64,7 +63,7 @@ public class TeleportHomeCreateScreen extends BaseTeleportScreen {
 				this.minecraft.setScreen(this.parent);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

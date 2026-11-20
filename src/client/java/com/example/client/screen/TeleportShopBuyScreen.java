@@ -2,6 +2,7 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.TextBoxComponent;
@@ -9,8 +10,6 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Sizing;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.Locale;
 
@@ -44,7 +43,7 @@ public class TeleportShopBuyScreen extends BaseTeleportScreen {
 		rootComponent.child(Components.label(ClientI18n.tr("screen.teleportmenu.shop.buy.amount")));
 		rootComponent.child(amount);
 
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.buy.confirm"), new ItemStack(Items.EMERALD), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.shop.buy.confirm"), TeleportIcons.CONFIRM, () -> {
 			int amountValue;
 			try {
 				amountValue = Integer.parseInt(this.amountText.trim());
@@ -63,7 +62,7 @@ public class TeleportShopBuyScreen extends BaseTeleportScreen {
 				this.minecraft.setScreen(this.parent);
 			}
 		}));
-		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), new ItemStack(Items.ARROW), () -> {
+		rootComponent.child(menuButton(ClientI18n.tr("screen.teleportmenu.players.back"), TeleportIcons.BACK, () -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(this.parent);
 			}

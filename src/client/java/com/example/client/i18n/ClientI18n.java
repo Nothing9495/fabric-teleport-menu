@@ -1,19 +1,14 @@
 package com.example.client.i18n;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
-import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -21,26 +16,33 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class ClientI18n {
-	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static final Map<String, Map<String, String>> TRANSLATIONS = new ConcurrentHashMap<>();
-	private static volatile String serverCacheKey = "default";
-	private static volatile long serverVersion = 0L;
+
+	static {
+		loadBundledLanguage("zh_cn");
+		loadBundledLanguage("en_us");
+	}
 
 	private ClientI18n() {
 	}
 
 	public static void onJoin(String remoteAddress) {
-		serverCacheKey = sanitize(remoteAddress);
-		loadCache();
+		// UI localization is bundled in the UI jar, no server fetch needed.
 	}
 
 	public static void applyServerTranslations(Map<String, Map<String, String>> packs, long version) {
-		TRANSLATIONS.clear();
-		for (Map.Entry<String, Map<String, String>> entry : packs.entrySet()) {
-			TRANSLATIONS.put(entry.getKey(), Map.copyOf(entry.getValue()));
+		if (packs == null || packs.isEmpty()) {
+			return;
 		}
-		serverVersion = version;
-		saveCache();
+
+		for (Map.Entry<String, Map<String, String>> pack : packs.entrySet()) {
+			if (pack.getValue() == null || pack.getValue().isEmpty()) {
+				continue;
+			}
+			Map<String, String> merged = new HashMap<>(TRANSLATIONS.getOrDefault(pack.getKey(), Map.of()));
+			merged.putAll(pack.getValue());
+			TRANSLATIONS.put(pack.getKey(), Map.copyOf(merged));
+		}
 	}
 
 	public static MutableComponent tr(String key, Object... args) {
@@ -58,20 +60,22 @@ public final class ClientI18n {
 	}
 
 	private static String resolve(String key) {
-		String lang = "zh_cn";
-		Minecraft mc = Minecraft.getInstance();
-		if (mc != null && mc.getLanguageManager() != null && mc.getLanguageManager().getSelected() != null) {
-			lang = mc.getLanguageManager().getSelected();
+		String selectedLanguage = "zh_cn";
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft != null && minecraft.getLanguageManager() != null && minecraft.getLanguageManager().getSelected() != null) {
+			selectedLanguage = minecraft.getLanguageManager().getSelected();
 		}
 
-		String value = getFrom(lang, key);
+		String value = getFrom(selectedLanguage, key);
 		if (value != null) {
 			return value;
 		}
+
 		value = getFrom("zh_cn", key);
 		if (value != null) {
 			return value;
 		}
+
 		value = getFrom("en_us", key);
 		return value != null ? value : key;
 	}
@@ -101,64 +105,22 @@ public final class ClientI18n {
 		return normalized;
 	}
 
-	private static Path cacheFile() {
-		return FabricLoader.getInstance().getConfigDir().resolve("teleportmenu").resolve("lang-cache").resolve(serverCacheKey + ".json");
-	}
-
-	private static void loadCache() {
-		Path file = cacheFile();
-		if (!Files.exists(file)) {
-			return;
-		}
-		try {
-			String raw = Files.readString(file, StandardCharsets.UTF_8);
+	private static void loadBundledLanguage(String languageCode) {
+		String resourcePath = "/assets/teleportmenu/lang/" + languageCode + ".json";
+		try (InputStream input = ClientI18n.class.getResourceAsStream(resourcePath)) {
+			if (input == null) {
+				return;
+			}
+			String raw = new String(input.readAllBytes(), StandardCharsets.UTF_8);
 			JsonObject root = JsonParser.parseString(raw).getAsJsonObject();
-			serverVersion = root.has("version") ? root.get("version").getAsLong() : 0L;
-			TRANSLATIONS.clear();
-			if (root.has("packs") && root.get("packs").isJsonObject()) {
-				JsonObject packsObj = root.getAsJsonObject("packs");
-				for (Map.Entry<String, JsonElement> langEntry : packsObj.entrySet()) {
-					if (!langEntry.getValue().isJsonObject()) {
-						continue;
-					}
-					JsonObject values = langEntry.getValue().getAsJsonObject();
-					Map<String, String> map = new HashMap<>();
-					for (Map.Entry<String, JsonElement> entry : values.entrySet()) {
-						if (entry.getValue().isJsonPrimitive()) {
-							map.put(entry.getKey(), entry.getValue().getAsString());
-						}
-					}
-					TRANSLATIONS.put(langEntry.getKey(), Map.copyOf(map));
+			Map<String, String> map = new HashMap<>();
+			for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+				if (entry.getValue().isJsonPrimitive()) {
+					map.put(entry.getKey(), entry.getValue().getAsString());
 				}
 			}
+			TRANSLATIONS.put(languageCode, Map.copyOf(map));
 		} catch (Exception ignored) {
 		}
-	}
-
-	private static void saveCache() {
-		Path file = cacheFile();
-		try {
-			Files.createDirectories(file.getParent());
-			JsonObject root = new JsonObject();
-			root.addProperty("version", serverVersion);
-			JsonObject packs = new JsonObject();
-			for (Map.Entry<String, Map<String, String>> langEntry : TRANSLATIONS.entrySet()) {
-				JsonObject values = new JsonObject();
-				for (Map.Entry<String, String> entry : langEntry.getValue().entrySet()) {
-					values.addProperty(entry.getKey(), entry.getValue());
-				}
-				packs.add(langEntry.getKey(), values);
-			}
-			root.add("packs", packs);
-			Files.writeString(file, GSON.toJson(root), StandardCharsets.UTF_8);
-		} catch (IOException ignored) {
-		}
-	}
-
-	private static String sanitize(String raw) {
-		if (raw == null || raw.isBlank()) {
-			return "default";
-		}
-		return raw.replaceAll("[^a-zA-Z0-9._-]", "_");
 	}
 }
