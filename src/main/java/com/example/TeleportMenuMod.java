@@ -403,6 +403,7 @@ public class TeleportMenuMod implements ModInitializer {
 			readRewardedEquipment(root);
 			readMoments(root);
 			readMomentDrafts(root);
+			readEconomySidebarHidden(root);
 			LOGGER.info("Loaded teleport menu data from {}", file);
 		} catch (Exception error) {
 			LOGGER.error("Failed to load teleport menu data from {}", file, error);
@@ -416,7 +417,7 @@ public class TeleportMenuMod implements ModInitializer {
 			Path file = dataFile(server);
 
 			JsonObject root = new JsonObject();
-			root.addProperty("schema", 1);
+			root.addProperty("schema", 2);
 			root.add("disabledItems", writeDisabledItems());
 			root.add("homes", writeHomes());
 			root.add("territories", writeTerritories());
@@ -426,6 +427,7 @@ public class TeleportMenuMod implements ModInitializer {
 			root.add("rewardedEquipment", writeRewardedEquipment());
 			root.add("moments", writeMoments());
 			root.add("momentDrafts", writeMomentDrafts());
+			root.add("economySidebarHiddenPlayerIds", writeEconomySidebarHidden());
 
 			Files.writeString(file, GSON.toJson(root), StandardCharsets.UTF_8);
 		} catch (IOException error) {
@@ -436,6 +438,14 @@ public class TeleportMenuMod implements ModInitializer {
 	private static JsonArray writeDisabledItems() {
 		JsonArray array = new JsonArray();
 		getDisabledItemIdList().forEach(array::add);
+		return array;
+	}
+
+	private static JsonArray writeEconomySidebarHidden() {
+		JsonArray array = new JsonArray();
+		ECONOMY_SIDEBAR_HIDDEN.stream()
+			.sorted(Comparator.comparing(UUID::toString))
+			.forEach(playerId -> array.add(playerId.toString()));
 		return array;
 	}
 
@@ -848,6 +858,23 @@ public class TeleportMenuMod implements ModInitializer {
 				}
 			} catch (Exception ignored) {
 				// skip invalid draft
+			}
+		}
+	}
+
+	private static void readEconomySidebarHidden(JsonObject root) {
+		if (!root.has("economySidebarHiddenPlayerIds") || !root.get("economySidebarHiddenPlayerIds").isJsonArray()) {
+			return;
+		}
+
+		for (JsonElement element : root.getAsJsonArray("economySidebarHiddenPlayerIds")) {
+			if (!element.isJsonPrimitive()) {
+				continue;
+			}
+			try {
+				ECONOMY_SIDEBAR_HIDDEN.add(UUID.fromString(element.getAsString()));
+			} catch (Exception ignored) {
+				// Skip invalid player IDs.
 			}
 		}
 	}
