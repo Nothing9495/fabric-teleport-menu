@@ -2181,60 +2181,121 @@ public class TeleportMenuMod implements ModInitializer {
 			return;
 		}
 
-		Scoreboard scoreboard = server.getScoreboard();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			try {
-				String objectiveName = economySidebarObjectiveName(player.getUUID());
-				Objective objective = scoreboard.getObjective(objectiveName);
-				boolean created = false;
-				if (objective == null) {
-					objective = scoreboard.addObjective(
-						objectiveName,
-						ObjectiveCriteria.DUMMY,
-						Component.literal("\u25C6 \u91D1\u5E01\u4F59\u989D"),
-						ObjectiveCriteria.RenderType.INTEGER,
-						false,
-						null
-					);
-					created = true;
-				}
-
-				double money = economyGetMoney(player.getName().getString());
-				int score = (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, Math.round(money)));
-				scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(ECONOMY_SIDEBAR_ENTRY), objective).set(score);
-
-				player.connection.send(new ClientboundSetObjectivePacket(
-					objective,
-					created ? ClientboundSetObjectivePacket.METHOD_ADD : ClientboundSetObjectivePacket.METHOD_CHANGE
-				));
-				player.connection.send(new ClientboundSetDisplayObjectivePacket(DisplaySlot.SIDEBAR, objective));
-				player.connection.send(new ClientboundSetScorePacket(
-					ECONOMY_SIDEBAR_ENTRY,
-					objective.getName(),
-					score,
-					Optional.empty(),
-					Optional.empty()
-				));
-			} catch (Exception error) {
-				LOGGER.debug("Failed to refresh economy sidebar for {}", player.getName().getString(), error);
-			}
+			applyEconomySidebarState(server, player.getUUID());
 		}
+	}
+
+	public static void setEconomySidebarVisible(MinecraftServer server, UUID playerId, boolean visible) {
+		if (server == null || playerId == null) {
+			return;
+		}
+
+		runEconomySidebarOnServerThread(server, () -> {
+			if (visible) {
+				ECONOMY_SIDEBAR_HIDDEN.remove(playerId);
+			} else {
+				ECONOMY_SIDEBAR_HIDDEN.add(playerId);
+				ECONOMY_SIDEBAR_LAST_SCORE.remove(playerId);
+				ECONOMY_SIDEBAR_ASSERTED.remove(playerId);
+				ECONOMY_SIDEBAR_HIDDEN_SENT.remove(playerId);
+			}
+			persistDataIfPossible();
+			applyEconomySidebarState(server, playerId);
+		});
+	}
+
+	private static void runEconomySidebarOnServerThread(MinecraftServer server, Runnable operation) {
+		if (server == null || operation == null) {
+			return;
+		}
+		if (server.isSameThread()) {
+			operation.run();
+		} else {
+			server.execute(operation);
+		}
+	}
+
+	private static void applyEconomySidebarState(MinecraftServer server, UUID playerId) {
+		if (server == null || playerId == null) {
+			return;
+		}
+		if (!server.isSameThread()) {
+			runEconomySidebarOnServerThread(server, () -> applyEconomySidebarState(server, playerId));
+			return;
+	}
+
+	ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+	if (player == null || player.isRemoved()) {
+		return;
+	}
+
+	if (ECONOMY_SIDEBAR_HIDDEN.contains(playerId)) {
+		if (ECONOMY_SIDEBAR_HIDDEN_SENT.add(playerId)) {
+			player.connection.send(new ClientboundSetDisplayObjectivePacket(DisplaySlot.SIDEBAR, null));
+		}
+		return;
+	}
+
+	ECONOMY_SIDEBAR_HIDDEN_SENT.remove(playerId);
+	try {
+		Scoreboard scoreboard = server.getScoreboard();
+		String objectiveName = economySidebarObjectiveName(playerId);
+		Objective objective = scoreboard.getObjective(objectiveName);
+		boolean created = objective == null;
+		if (created) {
+			objective = scoreboard.addObjective(
+				objectiveName,
+				ObjectiveCriteria.DUMMY,
+				Component.literal("\u25C6 \u91D1\u5E01\u4F59\u989D"),
+				ObjectiveCriteria.RenderType.INTEGER,
+				false,
+				null
+			);
+		}
+
+		double money = economyGetMoney(player.getName().getString());
+		int score = (int) Math.max(
+			Integer.MIN_VALUE,
+			Math.min(Integer.MAX_VALUE, Math.round(money))
+		);
+		Integer previous = ECONOMY_SIDEBAR_LAST_SCORE.put(playerId, score);
+
+		if (created) {
+			player.connection.send(new ClientboundSetObjectivePacket(
+				objective,
+				ClientboundSetObjectivePacket.METHOD_ADD
+			));
+		}
+
+		if (created || previous == null || previous != score) {
+			scoreboard.getOrCreatePlayerScore(
+				ScoreHolder.forNameOnly(ECONOMY_SIDEBAR_ENTRY),
+				objective
+			).set(score);
+			player.connection.send(new ClientboundSetScorePacket(
+				ECONOMY_SIDEBAR_ENTRY,
+				objective.getName(),
+				score,
+				Optional.empty(),
+				Optional.empty()
+			));
+		}
+
+		if (ECONOMY_SIDEBAR_ASSERTED.add(playerId)) {
+			player.connection.send(new ClientboundSetDisplayObjectivePacket(
+				DisplaySlot.SIDEBAR,
+				objective
+			));
+		}
+	} catch (Exception error) {
+		LOGGER.debug("Failed to apply economy sidebar for {}", player.getName().getString(), error);
+	}
 	}
 
 	private static String economySidebarObjectiveName(UUID playerId) {
 		String compact = playerId.toString().replace("-", "");
 		return "te2_" + compact.substring(0, 12);
-	}
-
-	private static void cleanupEconomySidebarObjective(MinecraftServer server, UUID playerId) {
-		if (server == null || playerId == null) {
-			return;
-		}
-		Scoreboard scoreboard = server.getScoreboard();
-		Objective objective = scoreboard.getObjective(economySidebarObjectiveName(playerId));
-		if (objective != null) {
-			scoreboard.removeObjective(objective);
-		}
 	}
 
 	private static void showTerritorySelectionParticles(ServerPlayer player) {
