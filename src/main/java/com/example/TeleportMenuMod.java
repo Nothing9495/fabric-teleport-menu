@@ -126,6 +126,8 @@ public class TeleportMenuMod implements ModInitializer {
 	private static final Set<UUID> BOX_SHOP_SHOP_IDS = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, UUID> BOX_SHOP_HOLOGRAMS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> PLAYER_SHOP_LIMITS = new ConcurrentHashMap<>();
+	private static final Map<UUID, MomentPoint> MOMENTS = new ConcurrentHashMap<>();
+	private static final Map<UUID, String> MOMENT_DRAFTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, TerritorySelection> TERRITORY_SELECTIONS = new ConcurrentHashMap<>();
 	private static final Map<UUID, TerritoryHudState> TERRITORY_HUD_STATES = new ConcurrentHashMap<>();
 	private static final Map<UUID, Long> LAST_DENY_ACTIONBAR_TICK = new ConcurrentHashMap<>();
@@ -147,6 +149,8 @@ public class TeleportMenuMod implements ModInitializer {
 	private static final int DEFAULT_SHOP_LIMIT = 2;
 	private static final int SHOP_LIMIT_EXPAND_COST = 100;
 	private static final int SHOP_DELETE_COST = 10;
+	private static final int MOMENT_MAX_CONTENT_LENGTH = 256;
+	private static final int MOMENT_MAX_COUNT = 100;
 	private static final String DEFAULT_BOX_SHOP_NAME = "\u7bb1\u5b50\u5546\u5e97";
 	private static final String BOX_SHOP_HOLOGRAM_TAG = "teleportmenu_boxshop_holo";
 	private static boolean ECONOMY_API_INITIALIZED = false;
@@ -195,6 +199,7 @@ public class TeleportMenuMod implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.EconomyStatePayload.TYPE, TeleportMenuPayloads.EconomyStatePayload.STREAM_CODEC);
 		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.OpenBoxShopPayload.TYPE, TeleportMenuPayloads.OpenBoxShopPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.BoxShopHudPayload.TYPE, TeleportMenuPayloads.BoxShopHudPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playS2C().register(TeleportMenuPayloads.MomentFeedPayload.TYPE, TeleportMenuPayloads.MomentFeedPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.TeleportRequestPayload.TYPE, TeleportMenuPayloads.TeleportRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.TeleportHomeRequestPayload.TYPE, TeleportMenuPayloads.TeleportHomeRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.TeleportTerritoryRequestPayload.TYPE, TeleportMenuPayloads.TeleportTerritoryRequestPayload.STREAM_CODEC);
@@ -217,6 +222,11 @@ public class TeleportMenuMod implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.BuyShopGoodRequestPayload.TYPE, TeleportMenuPayloads.BuyShopGoodRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.RenameBoxShopPayload.TYPE, TeleportMenuPayloads.RenameBoxShopPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.QueryBoxShopHudPayload.TYPE, TeleportMenuPayloads.QueryBoxShopHudPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.RequestMomentFeedPayload.TYPE, TeleportMenuPayloads.RequestMomentFeedPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.PostMomentPayload.TYPE, TeleportMenuPayloads.PostMomentPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.LikeMomentPayload.TYPE, TeleportMenuPayloads.LikeMomentPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.DeleteMomentPayload.TYPE, TeleportMenuPayloads.DeleteMomentPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.SaveMomentDraftPayload.TYPE, TeleportMenuPayloads.SaveMomentDraftPayload.STREAM_CODEC);
 
 		PlayerBlockBreakEvents.BEFORE.register(TeleportMenuMod::onBeforeBlockBreak);
 		PlayerBlockBreakEvents.AFTER.register(TeleportMenuMod::onAfterBlockBreak);
@@ -262,6 +272,16 @@ public class TeleportMenuMod implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.RenameBoxShopPayload.TYPE, (payload, context) -> handleRenameBoxShop(context.player(), payload.boxShopId(), payload.name()));
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.QueryBoxShopHudPayload.TYPE, (payload, context) ->
 			handleQueryBoxShopHud(context.player(), payload.x(), payload.y(), payload.z()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.RequestMomentFeedPayload.TYPE, (payload, context) ->
+			handleRequestMomentFeed(context.player()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.PostMomentPayload.TYPE, (payload, context) ->
+			handlePostMoment(context.player(), payload.content()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.LikeMomentPayload.TYPE, (payload, context) ->
+			handleLikeMoment(context.player(), payload.momentId()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.DeleteMomentPayload.TYPE, (payload, context) ->
+			handleDeleteMoment(context.player(), payload.momentId()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.SaveMomentDraftPayload.TYPE, (payload, context) ->
+			handleSaveMomentDraft(context.player(), payload.content()));
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 			if (!(entity instanceof Monster)) {
 				return;
@@ -312,6 +332,8 @@ public class TeleportMenuMod implements ModInitializer {
 		BOX_SHOP_HOLOGRAMS.clear();
 		PLAYER_SHOP_LIMITS.clear();
 		PLAYER_UI_PROTOCOLS.clear();
+		MOMENTS.clear();
+		MOMENT_DRAFTS.clear();
 		SERVER_LOCALIZATIONS.clear();
 	}
 
@@ -339,6 +361,8 @@ public class TeleportMenuMod implements ModInitializer {
 		PLAYER_SHOP_LIMITS.clear();
 		DISABLED_ITEM_IDS.clear();
 		PLAYER_REWARDED_EQUIPMENT.clear();
+		MOMENTS.clear();
+		MOMENT_DRAFTS.clear();
 
 		Path file = dataFile(server);
 		if (!Files.exists(file)) {
@@ -361,6 +385,8 @@ public class TeleportMenuMod implements ModInitializer {
 			readBoxShops(root);
 			readShopLimits(root);
 			readRewardedEquipment(root);
+			readMoments(root);
+			readMomentDrafts(root);
 			LOGGER.info("Loaded teleport menu data from {}", file);
 		} catch (Exception error) {
 			LOGGER.error("Failed to load teleport menu data from {}", file, error);
@@ -382,6 +408,8 @@ public class TeleportMenuMod implements ModInitializer {
 			root.add("boxShops", writeBoxShops());
 			root.add("shopLimits", writeShopLimits());
 			root.add("rewardedEquipment", writeRewardedEquipment());
+			root.add("moments", writeMoments());
+			root.add("momentDrafts", writeMomentDrafts());
 
 			Files.writeString(file, GSON.toJson(root), StandardCharsets.UTF_8);
 		} catch (IOException error) {
@@ -513,6 +541,41 @@ public class TeleportMenuMod implements ModInitializer {
 				obj.addProperty("itemId", itemId);
 				array.add(obj);
 			}
+		}
+		return array;
+	}
+
+	private static JsonArray writeMoments() {
+		List<MomentPoint> moments = new ArrayList<>(MOMENTS.values());
+		moments.sort(Comparator.comparingLong(MomentPoint::createdAt).reversed());
+
+		JsonArray array = new JsonArray();
+		for (MomentPoint moment : moments) {
+			JsonObject obj = new JsonObject();
+			obj.addProperty("id", moment.id().toString());
+			obj.addProperty("authorId", moment.authorId().toString());
+			obj.addProperty("authorName", moment.authorName());
+			obj.addProperty("content", moment.content());
+			obj.addProperty("createdAt", moment.createdAt());
+
+			JsonArray likedBy = new JsonArray();
+			for (UUID playerId : moment.likedBy()) {
+				likedBy.add(playerId.toString());
+			}
+			obj.add("likedBy", likedBy);
+
+			array.add(obj);
+		}
+		return array;
+	}
+
+	private static JsonArray writeMomentDrafts() {
+		JsonArray array = new JsonArray();
+		for (Map.Entry<UUID, String> entry : MOMENT_DRAFTS.entrySet()) {
+			JsonObject obj = new JsonObject();
+			obj.addProperty("playerId", entry.getKey().toString());
+			obj.addProperty("content", entry.getValue());
+			array.add(obj);
 		}
 		return array;
 	}
@@ -699,6 +762,76 @@ public class TeleportMenuMod implements ModInitializer {
 				PLAYER_REWARDED_EQUIPMENT.computeIfAbsent(owner, key -> ConcurrentHashMap.newKeySet()).add(itemId);
 			} catch (Exception ignored) {
 				// Skip invalid entry
+			}
+		}
+	}
+
+	private static void readMoments(JsonObject root) {
+		if (!root.has("moments") || !root.get("moments").isJsonArray()) {
+			return;
+		}
+
+		for (JsonElement element : root.getAsJsonArray("moments")) {
+			if (!element.isJsonObject()) {
+				continue;
+			}
+
+			JsonObject obj = element.getAsJsonObject();
+			try {
+				UUID id = UUID.fromString(obj.get("id").getAsString());
+				UUID authorId = UUID.fromString(obj.get("authorId").getAsString());
+				String authorName = obj.has("authorName") ? obj.get("authorName").getAsString() : "";
+				String content = obj.has("content") ? obj.get("content").getAsString() : "";
+				long createdAt = obj.has("createdAt") ? obj.get("createdAt").getAsLong() : 0L;
+				if (content.isBlank()) {
+					continue;
+				}
+
+				MomentPoint moment = new MomentPoint(id, authorId, authorName, truncateMomentContent(content), createdAt);
+				readMomentPlayerIds(obj, "likedBy", moment.likedBy());
+				MOMENTS.put(id, moment);
+			} catch (Exception ignored) {
+				// skip invalid moment
+			}
+		}
+	}
+
+	private static void readMomentPlayerIds(JsonObject obj, String key, Set<UUID> target) {
+		if (!obj.has(key) || !obj.get(key).isJsonArray()) {
+			return;
+		}
+
+		for (JsonElement element : obj.getAsJsonArray(key)) {
+			if (!element.isJsonPrimitive()) {
+				continue;
+			}
+			try {
+				target.add(UUID.fromString(element.getAsString()));
+			} catch (IllegalArgumentException ignored) {
+				// skip invalid uuid
+			}
+		}
+	}
+
+	private static void readMomentDrafts(JsonObject root) {
+		if (!root.has("momentDrafts") || !root.get("momentDrafts").isJsonArray()) {
+			return;
+		}
+
+		for (JsonElement element : root.getAsJsonArray("momentDrafts")) {
+			if (!element.isJsonObject()) {
+				continue;
+			}
+
+			JsonObject obj = element.getAsJsonObject();
+			try {
+				UUID playerId = UUID.fromString(obj.get("playerId").getAsString());
+				String content = obj.has("content") ? obj.get("content").getAsString() : "";
+				if (!content.isBlank()) {
+					MOMENT_DRAFTS.put(playerId, truncateMomentContent(content));
+				}
+			} catch (Exception ignored) {
+				// skip invalid draft
 			}
 		}
 	}
@@ -2899,6 +3032,173 @@ public class TeleportMenuMod implements ModInitializer {
 		));
 	}
 
+	private static void handleRequestMomentFeed(ServerPlayer player) {
+		sendMomentFeed(player);
+	}
+
+	private static void handlePostMoment(ServerPlayer player, String rawContent) {
+		if (player == null) {
+			return;
+		}
+
+		String content = sanitizeMomentContent(rawContent);
+		if (content.isBlank()) {
+			sendError(player, "message.teleportmenu.moment_empty");
+			return;
+		}
+
+		MomentPoint moment = new MomentPoint(
+			UUID.randomUUID(),
+			player.getUUID(),
+			player.getName().getString(),
+			content,
+			System.currentTimeMillis()
+		);
+		MOMENTS.put(moment.id(), moment);
+		MOMENT_DRAFTS.remove(player.getUUID());
+		trimMoments();
+		persistDataIfPossible();
+		sendSuccess(player, "message.teleportmenu.moment_posted");
+		broadcastMomentFeeds();
+	}
+
+	private static void handleLikeMoment(ServerPlayer player, UUID momentId) {
+		if (player == null || momentId == null) {
+			return;
+		}
+
+		MomentPoint moment = MOMENTS.get(momentId);
+		if (moment == null) {
+			sendError(player, "message.teleportmenu.moment_not_found");
+			return;
+		}
+
+		moment.toggleLike(player.getUUID());
+		persistDataIfPossible();
+		broadcastMomentFeeds();
+	}
+
+	private static void handleDeleteMoment(ServerPlayer player, UUID momentId) {
+		if (player == null || momentId == null) {
+			return;
+		}
+
+		MomentPoint moment = MOMENTS.remove(momentId);
+		if (moment == null) {
+			sendError(player, "message.teleportmenu.moment_not_found");
+			sendMomentFeed(player);
+			return;
+		}
+
+		persistDataIfPossible();
+		sendSuccess(player, "message.teleportmenu.moment_deleted");
+		broadcastMomentFeeds();
+	}
+
+	private static void handleSaveMomentDraft(ServerPlayer player, String rawContent) {
+		if (player == null) {
+			return;
+		}
+
+		String content = rawContent == null ? "" : rawContent;
+		if (content.isBlank()) {
+			MOMENT_DRAFTS.remove(player.getUUID());
+			sendSuccess(player, "message.teleportmenu.moment_draft_cleared");
+		} else {
+			MOMENT_DRAFTS.put(player.getUUID(), truncateMomentContent(content));
+			sendSuccess(player, "message.teleportmenu.moment_draft_saved");
+		}
+
+		persistDataIfPossible();
+		sendMomentFeed(player);
+	}
+
+	private static void sendMomentFeed(ServerPlayer player) {
+		if (player == null || player.server == null) {
+			return;
+		}
+		if (!ServerPlayNetworking.canSend(player, TeleportMenuPayloads.MomentFeedPayload.TYPE)) {
+			return;
+		}
+
+		ServerPlayNetworking.send(player, buildMomentFeed(player));
+	}
+
+	private static TeleportMenuPayloads.MomentFeedPayload buildMomentFeed(ServerPlayer viewer) {
+		UUID viewerId = viewer.getUUID();
+		List<TeleportMenuPayloads.MomentEntry> entries = new ArrayList<>();
+		for (MomentPoint moment : MOMENTS.values()) {
+			entries.add(new TeleportMenuPayloads.MomentEntry(
+				moment.id(),
+				moment.authorId(),
+				moment.authorName(),
+				moment.content(),
+				moment.createdAt(),
+				moment.likedBy().size(),
+				moment.likedBy().contains(viewerId),
+				moment.authorId().equals(viewerId)
+			));
+		}
+
+		entries.sort(Comparator.comparingLong(TeleportMenuPayloads.MomentEntry::createdAt).reversed());
+		return new TeleportMenuPayloads.MomentFeedPayload(entries, MOMENT_DRAFTS.getOrDefault(viewerId, ""));
+	}
+
+	private static void broadcastMomentFeeds() {
+		MinecraftServer server = ACTIVE_SERVER;
+		if (server == null) {
+			return;
+		}
+
+		for (ServerPlayer online : server.getPlayerList().getPlayers()) {
+			sendMomentFeed(online);
+		}
+	}
+
+	private static void trimMoments() {
+		if (MOMENTS.size() <= MOMENT_MAX_COUNT) {
+			return;
+		}
+
+		List<MomentPoint> sorted = new ArrayList<>(MOMENTS.values());
+		sorted.sort(Comparator.comparingLong(MomentPoint::createdAt));
+		int removeCount = sorted.size() - MOMENT_MAX_COUNT;
+		for (int i = 0; i < removeCount; i++) {
+			MOMENTS.remove(sorted.get(i).id());
+		}
+	}
+
+	private static String sanitizeMomentContent(String rawContent) {
+		if (rawContent == null) {
+			return "";
+		}
+
+		String normalized = rawContent
+			.replace("\r\n", "\n")
+			.replace('\r', '\n')
+			.replace("\t", "    ");
+
+		StringBuilder builder = new StringBuilder(Math.min(normalized.length(), MOMENT_MAX_CONTENT_LENGTH));
+		for (int i = 0; i < normalized.length() && builder.length() < MOMENT_MAX_CONTENT_LENGTH; i++) {
+			char current = normalized.charAt(i);
+			if (current == '\n' || current >= 0x20) {
+				builder.append(current);
+			}
+		}
+
+		return builder.toString().strip();
+	}
+
+	private static String truncateMomentContent(String content) {
+		if (content == null) {
+			return "";
+		}
+
+		return content.length() > MOMENT_MAX_CONTENT_LENGTH
+			? content.substring(0, MOMENT_MAX_CONTENT_LENGTH)
+			: content;
+	}
+
 	private static int countItemInInventory(Inventory inventory, Item item) {
 		int total = 0;
 		for (int i = 0; i < inventory.getContainerSize(); i++) {
@@ -3025,6 +3325,40 @@ public class TeleportMenuMod implements ModInitializer {
 	}
 
 	private record HomePoint(UUID id, String name, int x, int y, int z, String iconItemId) {
+	}
+
+	private static final class MomentPoint {
+		private final UUID id;
+		private final UUID authorId;
+		private final String authorName;
+		private final String content;
+		private final long createdAt;
+		private final Set<UUID> likedBy = ConcurrentHashMap.newKeySet();
+
+		private MomentPoint(UUID id, UUID authorId, String authorName, String content, long createdAt) {
+			this.id = id;
+			this.authorId = authorId;
+			this.authorName = authorName == null ? "" : authorName;
+			this.content = content == null ? "" : content;
+			this.createdAt = createdAt;
+		}
+
+		private UUID id() { return this.id; }
+		private UUID authorId() { return this.authorId; }
+		private String authorName() { return this.authorName; }
+		private String content() { return this.content; }
+		private long createdAt() { return this.createdAt; }
+		private Set<UUID> likedBy() { return this.likedBy; }
+
+		private boolean toggleLike(UUID playerId) {
+			if (this.likedBy.contains(playerId)) {
+				this.likedBy.remove(playerId);
+				return false;
+			}
+
+			this.likedBy.add(playerId);
+			return true;
+		}
 	}
 
 	private record TerritorySelection(ResourceLocation dimensionId, BlockPos pointA, BlockPos pointB) {

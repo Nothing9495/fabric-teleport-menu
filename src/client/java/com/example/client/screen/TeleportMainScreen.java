@@ -2,6 +2,7 @@ package com.example.client.screen;
 
 import com.example.client.i18n.ClientI18n;
 
+import com.example.client.TeleportMenuClient;
 import com.example.client.widget.OreCardButtonWidget;
 import com.example.client.widget.TeleportIcons;
 import com.example.network.TeleportMenuPayloads;
@@ -89,6 +90,20 @@ public class TeleportMainScreen extends BaseTeleportScreen {
 
 		FlowLayout secondRow = Containers.horizontalFlow(Sizing.content(), Sizing.fixed(CARD_HEIGHT));
 		secondRow.gap(CARD_GAP);
+		secondRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.moments"), TeleportIcons.MOMENTS, () -> {
+			if (this.minecraft == null) {
+				return;
+			}
+
+			if (!TeleportMenuClient.requestMomentFeed()) {
+				if (this.minecraft.player != null) {
+					this.minecraft.player.sendSystemMessage(ClientI18n.tr("message.teleportmenu.moment_unsupported"));
+				}
+				return;
+			}
+
+			this.minecraft.setScreen(new TeleportMomentScreen(this));
+		}));
 		if (this.admin) {
 			secondRow.child(cardButton(ClientI18n.tr("screen.teleportmenu.main.admin"), TeleportIcons.ADMIN, () -> {
 				if (this.minecraft != null) {

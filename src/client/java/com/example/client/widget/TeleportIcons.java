@@ -34,6 +34,7 @@ public final class TeleportIcons {
 	public static final ResourceLocation WHITELIST = icon("whitelist");
 	public static final ResourceLocation INVENTORY = icon("inventory");
 	public static final ResourceLocation BOXSHOP = icon("boxshop");
+	public static final ResourceLocation MOMENTS = icon("moments");
 
 	// Main menu cards
 	public static final ResourceLocation PLAYERS = icon("players");

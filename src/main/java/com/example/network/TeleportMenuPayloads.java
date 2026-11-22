@@ -27,6 +27,23 @@ public final class TeleportMenuPayloads {
 		}
 	}
 
+	public record MomentEntry(
+		UUID id,
+		UUID authorId,
+		String authorName,
+		String content,
+		long createdAt,
+		int likeCount,
+		boolean likedByViewer,
+		boolean own
+	) {
+		public MomentEntry {
+			authorName = authorName == null ? "" : authorName;
+			content = content == null ? "" : content;
+			likeCount = Math.max(0, likeCount);
+		}
+	}
+
 	public record TerritoryTarget(
 		UUID id,
 		String name,
@@ -1080,6 +1097,161 @@ public final class TeleportMenuPayloads {
 				ids.add(buf.readUtf(128));
 			}
 			return ids;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record MomentFeedPayload(List<MomentEntry> moments, String draft) implements CustomPacketPayload {
+		public static final Type<MomentFeedPayload> TYPE = new Type<>(id("moment_feed"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, MomentFeedPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(MomentFeedPayload::write, MomentFeedPayload::new);
+
+		public MomentFeedPayload {
+			moments = List.copyOf(moments);
+			draft = draft == null ? "" : draft;
+		}
+
+		private MomentFeedPayload(RegistryFriendlyByteBuf buf) {
+			this(readMoments(buf), buf.readUtf(1024));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeVarInt(this.moments.size());
+			for (MomentEntry moment : this.moments) {
+				buf.writeUUID(moment.id());
+				buf.writeUUID(moment.authorId());
+				buf.writeUtf(moment.authorName(), 64);
+				buf.writeUtf(moment.content(), 1024);
+				buf.writeLong(moment.createdAt());
+				buf.writeVarInt(moment.likeCount());
+				buf.writeBoolean(moment.likedByViewer());
+				buf.writeBoolean(moment.own());
+			}
+			buf.writeUtf(this.draft, 1024);
+		}
+
+		private static List<MomentEntry> readMoments(RegistryFriendlyByteBuf buf) {
+			int size = buf.readVarInt();
+			List<MomentEntry> moments = new ArrayList<>(size);
+			for (int i = 0; i < size; i++) {
+				moments.add(new MomentEntry(
+					buf.readUUID(),
+					buf.readUUID(),
+					buf.readUtf(64),
+					buf.readUtf(1024),
+					buf.readLong(),
+					buf.readVarInt(),
+					buf.readBoolean(),
+					buf.readBoolean()
+				));
+			}
+			return moments;
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record RequestMomentFeedPayload() implements CustomPacketPayload {
+		public static final Type<RequestMomentFeedPayload> TYPE = new Type<>(id("request_moment_feed"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, RequestMomentFeedPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(RequestMomentFeedPayload::write, RequestMomentFeedPayload::new);
+
+		private RequestMomentFeedPayload(RegistryFriendlyByteBuf buf) {
+			this();
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record PostMomentPayload(String content) implements CustomPacketPayload {
+		public static final Type<PostMomentPayload> TYPE = new Type<>(id("post_moment"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, PostMomentPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(PostMomentPayload::write, PostMomentPayload::new);
+
+		public PostMomentPayload {
+			content = content == null ? "" : content;
+		}
+
+		private PostMomentPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUtf(1024));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUtf(this.content, 1024);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record LikeMomentPayload(UUID momentId) implements CustomPacketPayload {
+		public static final Type<LikeMomentPayload> TYPE = new Type<>(id("like_moment"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, LikeMomentPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(LikeMomentPayload::write, LikeMomentPayload::new);
+
+		private LikeMomentPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.momentId);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record DeleteMomentPayload(UUID momentId) implements CustomPacketPayload {
+		public static final Type<DeleteMomentPayload> TYPE = new Type<>(id("delete_moment"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, DeleteMomentPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(DeleteMomentPayload::write, DeleteMomentPayload::new);
+
+		private DeleteMomentPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUUID());
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUUID(this.momentId);
+		}
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
+	public record SaveMomentDraftPayload(String content) implements CustomPacketPayload {
+		public static final Type<SaveMomentDraftPayload> TYPE = new Type<>(id("save_moment_draft"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, SaveMomentDraftPayload> STREAM_CODEC =
+			CustomPacketPayload.codec(SaveMomentDraftPayload::write, SaveMomentDraftPayload::new);
+
+		public SaveMomentDraftPayload {
+			content = content == null ? "" : content;
+		}
+
+		private SaveMomentDraftPayload(RegistryFriendlyByteBuf buf) {
+			this(buf.readUtf(1024));
+		}
+
+		private void write(RegistryFriendlyByteBuf buf) {
+			buf.writeUtf(this.content, 1024);
 		}
 
 		@Override

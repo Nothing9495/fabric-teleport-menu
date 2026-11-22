@@ -2,9 +2,15 @@ package com.example.client;
 
 import com.example.client.i18n.ClientI18n;
 import com.example.client.screen.*;
+import com.example.client.config.ClientPreferences;
 import com.example.network.TeleportMenuPayloads;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
@@ -14,20 +20,87 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.core.BlockPos;
+import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.ChatFormatting;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Scoreboard;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 public class TeleportMenuClient implements ClientModInitializer {
 	public static final int UI_PROTOCOL_VERSION = 2;
+	private static final String ECONOMY_SIDEBAR_PREFIX = "te2_";
+	private static final Set<String> REWARD_TIP_KEYS = Set.of(
+		"message.teleportmenu.economy_reward_kill",
+		"message.teleportmenu.economy_reward_mining",
+		"message.teleportmenu.economy_reward_equipment"
+	);
+	private static final List<String> HELP_HEADS = List.of("help", "clock", "territ", "boxshop", "false", "true");
+	private static final List<String> HELP_OVERVIEW_KEYS = List.of(
+		"command.teleportmenu.help.line.help",
+		"command.teleportmenu.help.line.clock",
+		"command.teleportmenu.help.line.territ",
+		"command.teleportmenu.help.line.boxshop",
+		"command.teleportmenu.help.line.false",
+		"command.teleportmenu.help.line.true"
+	);
+	private static final Map<String, List<String>> HELP_DETAIL_KEYS = Map.of(
+		"help", List.of(
+			"command.teleportmenu.help.detail.help.title",
+			"command.teleportmenu.help.detail.help.desc",
+			"command.teleportmenu.help.detail.help.usage1",
+			"command.teleportmenu.help.detail.help.usage2"
+		),
+		"clock", List.of(
+			"command.teleportmenu.help.detail.clock.title",
+			"command.teleportmenu.help.detail.clock.desc",
+			"command.teleportmenu.help.detail.clock.note"
+		),
+		"territ", List.of(
+			"command.teleportmenu.help.detail.territ.title",
+			"command.teleportmenu.help.detail.territ.desc",
+			"command.teleportmenu.help.detail.territ.usage1",
+			"command.teleportmenu.help.detail.territ.usage2",
+			"command.teleportmenu.help.detail.territ.usage3",
+			"command.teleportmenu.help.detail.territ.note"
+		),
+		"boxshop", List.of(
+			"command.teleportmenu.help.detail.boxshop.title",
+			"command.teleportmenu.help.detail.boxshop.desc",
+			"command.teleportmenu.help.detail.boxshop.usage1",
+			"command.teleportmenu.help.detail.boxshop.usage2",
+			"command.teleportmenu.help.detail.boxshop.note"
+		),
+		"false", List.of(
+			"command.teleportmenu.help.detail.false.title",
+			"command.teleportmenu.help.detail.false.desc",
+			"command.teleportmenu.help.detail.false.usage1",
+			"command.teleportmenu.help.detail.false.usage2",
+			"command.teleportmenu.help.detail.false.note"
+		),
+		"true", List.of(
+			"command.teleportmenu.help.detail.true.title",
+			"command.teleportmenu.help.detail.true.desc",
+			"command.teleportmenu.help.detail.true.usage1",
+			"command.teleportmenu.help.detail.true.usage2"
+		)
+	);
 	private static final Set<String> DISABLED_ITEM_IDS = new LinkedHashSet<>();
 	private static List<TeleportMenuPayloads.EconomyLeaderboardEntry> LEADERBOARD = List.of();
 	private static List<TeleportMenuPayloads.ShopTarget> SHOPS = List.of();
+	private static List<TeleportMenuPayloads.MomentEntry> MOMENTS = List.of();
+	private static String MOMENT_DRAFT = "";
 	private static int OWN_SHOP_COUNT = 0;
 	private static int OWN_SHOP_LIMIT = 2;
 	private static String BOX_HUD_NAME = "";
@@ -53,6 +126,31 @@ public class TeleportMenuClient implements ClientModInitializer {
 		return SHOPS;
 	}
 
+	public static List<TeleportMenuPayloads.MomentEntry> momentEntries() {
+		return MOMENTS;
+	}
+
+	public static String momentDraft() {
+		return MOMENT_DRAFT;
+	}
+
+	public static boolean requestMomentFeed() {
+		return sendMomentPayload(new TeleportMenuPayloads.RequestMomentFeedPayload());
+	}
+
+	/**
+	 * Sends a moment-related payload only when the connected server declared the
+	 * channel, so an outdated server cannot crash the UI.
+	 */
+	public static boolean sendMomentPayload(CustomPacketPayload payload) {
+		if (payload == null || !ClientPlayNetworking.canSend(payload.type())) {
+			return false;
+		}
+
+		ClientPlayNetworking.send(payload);
+		return true;
+	}
+
 	public static int ownShopCount() {
 		return OWN_SHOP_COUNT;
 	}
@@ -64,12 +162,18 @@ public class TeleportMenuClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		registerPayloadTypes();
+		registerClientUiPreferences();
+		registerClientHelpCommand();
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			ClientI18n.onJoin(handler.getConnection().getRemoteAddress().toString());
+			clearMomentCache();
 			clearBoxHud();
 			ClientPlayNetworking.send(new TeleportMenuPayloads.ClientHelloPayload(UI_PROTOCOL_VERSION));
 		});
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clearBoxHud());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			clearMomentCache();
+			clearBoxHud();
+		});
 		ClientTickEvents.END_CLIENT_TICK.register(TeleportMenuClient::tickBoxHudQuery);
 		HudRenderCallback.EVENT.register((guiGraphics, tickCounter) -> renderBoxHud(guiGraphics));
 
@@ -130,6 +234,15 @@ public class TeleportMenuClient implements ClientModInitializer {
 			OWN_SHOP_LIMIT = payload.ownShopLimit();
 		});
 
+		ClientPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.MomentFeedPayload.TYPE, (payload, context) -> {
+			MOMENTS = List.copyOf(payload.moments());
+			MOMENT_DRAFT = payload.draft() == null ? "" : payload.draft();
+
+			if (context.client().screen instanceof TeleportMomentScreen momentScreen) {
+				momentScreen.applyFeed(MOMENTS);
+			}
+		});
+
 		ClientPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.OpenBoxShopPayload.TYPE, (payload, context) -> {
 			context.client().setScreen(new TeleportBoxShopScreen(payload.target()));
 		});
@@ -173,6 +286,7 @@ public class TeleportMenuClient implements ClientModInitializer {
 		registerS2C(TeleportMenuPayloads.OpenBoxShopPayload.TYPE, TeleportMenuPayloads.OpenBoxShopPayload.STREAM_CODEC);
 		registerS2C(TeleportMenuPayloads.BoxShopHudPayload.TYPE, TeleportMenuPayloads.BoxShopHudPayload.STREAM_CODEC);
 		registerS2C(TeleportMenuPayloads.LocalizationSyncPayload.TYPE, TeleportMenuPayloads.LocalizationSyncPayload.STREAM_CODEC);
+		registerS2C(TeleportMenuPayloads.MomentFeedPayload.TYPE, TeleportMenuPayloads.MomentFeedPayload.STREAM_CODEC);
 
 		registerC2S(TeleportMenuPayloads.TeleportRequestPayload.TYPE, TeleportMenuPayloads.TeleportRequestPayload.STREAM_CODEC);
 		registerC2S(TeleportMenuPayloads.TeleportHomeRequestPayload.TYPE, TeleportMenuPayloads.TeleportHomeRequestPayload.STREAM_CODEC);
@@ -196,6 +310,155 @@ public class TeleportMenuClient implements ClientModInitializer {
 		registerC2S(TeleportMenuPayloads.BuyShopGoodRequestPayload.TYPE, TeleportMenuPayloads.BuyShopGoodRequestPayload.STREAM_CODEC);
 		registerC2S(TeleportMenuPayloads.RenameBoxShopPayload.TYPE, TeleportMenuPayloads.RenameBoxShopPayload.STREAM_CODEC);
 		registerC2S(TeleportMenuPayloads.QueryBoxShopHudPayload.TYPE, TeleportMenuPayloads.QueryBoxShopHudPayload.STREAM_CODEC);
+		registerC2S(TeleportMenuPayloads.RequestMomentFeedPayload.TYPE, TeleportMenuPayloads.RequestMomentFeedPayload.STREAM_CODEC);
+		registerC2S(TeleportMenuPayloads.PostMomentPayload.TYPE, TeleportMenuPayloads.PostMomentPayload.STREAM_CODEC);
+		registerC2S(TeleportMenuPayloads.LikeMomentPayload.TYPE, TeleportMenuPayloads.LikeMomentPayload.STREAM_CODEC);
+		registerC2S(TeleportMenuPayloads.DeleteMomentPayload.TYPE, TeleportMenuPayloads.DeleteMomentPayload.STREAM_CODEC);
+		registerC2S(TeleportMenuPayloads.SaveMomentDraftPayload.TYPE, TeleportMenuPayloads.SaveMomentDraftPayload.STREAM_CODEC);
+	}
+
+	private static void registerClientHelpCommand() {
+		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+			dispatcher.register(ClientCommandManager.literal("help")
+				.executes(context -> {
+					showHelp(context.getSource(), null);
+					return 1;
+				})
+				.then(ClientCommandManager.argument("command", StringArgumentType.word())
+					.suggests((context, builder) -> SharedSuggestionProvider.suggest(HELP_HEADS, builder))
+					.executes(context -> {
+						showHelp(context.getSource(), StringArgumentType.getString(context, "command"));
+						return 1;
+					})));
+		});
+	}
+
+	/**
+	 * Prints the help into this client's chat only. Client commands never reach the
+	 * server, so neither the command nor the explanation is visible to anyone else.
+	 */
+	private static void showHelp(FabricClientCommandSource source, String head) {
+		if (head == null || head.isBlank()) {
+			source.sendFeedback(ClientI18n.tr("command.teleportmenu.help.title").withStyle(ChatFormatting.GOLD));
+			source.sendFeedback(ClientI18n.tr("command.teleportmenu.help.usage").withStyle(ChatFormatting.DARK_GRAY));
+			for (String key : HELP_OVERVIEW_KEYS) {
+				source.sendFeedback(ClientI18n.tr(key).withStyle(ChatFormatting.GRAY));
+			}
+			return;
+		}
+
+		String normalized = head.trim().toLowerCase(Locale.ROOT);
+		List<String> detailKeys = HELP_DETAIL_KEYS.get(normalized);
+		if (detailKeys == null) {
+			source.sendFeedback(ClientI18n.tr("command.teleportmenu.help.unknown", head).withStyle(ChatFormatting.RED));
+			source.sendFeedback(ClientI18n.tr("command.teleportmenu.help.usage").withStyle(ChatFormatting.DARK_GRAY));
+			return;
+		}
+
+		for (int index = 0; index < detailKeys.size(); index++) {
+			ChatFormatting color = index == 0
+				? ChatFormatting.GOLD
+				: (index == detailKeys.size() - 1 ? ChatFormatting.DARK_GRAY : ChatFormatting.GRAY);
+			source.sendFeedback(ClientI18n.tr(detailKeys.get(index)).withStyle(color));
+		}
+	}
+
+	private static void registerClientUiPreferences() {
+		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+			dispatcher.register(ClientCommandManager.literal("false")
+				.then(ClientCommandManager.literal("money").executes(context -> {
+					setMoneySidebarHidden(true);
+					context.getSource().sendFeedback(ClientI18n.tr("message.teleportmenu.economy_sidebar_off"));
+					return 1;
+				}))
+				.then(ClientCommandManager.literal("tips").executes(context -> {
+					setRewardTipsHidden(true);
+					context.getSource().sendFeedback(ClientI18n.tr("message.teleportmenu.reward_tips_off"));
+					return 1;
+				})));
+
+			dispatcher.register(ClientCommandManager.literal("true")
+				.then(ClientCommandManager.literal("money").executes(context -> {
+					setMoneySidebarHidden(false);
+					context.getSource().sendFeedback(ClientI18n.tr("message.teleportmenu.economy_sidebar_on"));
+					return 1;
+				}))
+				.then(ClientCommandManager.literal("tips").executes(context -> {
+					setRewardTipsHidden(false);
+					context.getSource().sendFeedback(ClientI18n.tr("message.teleportmenu.reward_tips_on"));
+					return 1;
+				})));
+		});
+
+		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) ->
+			overlay || !ClientPreferences.hideRewardTips() || !isRewardTip(message));
+
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			if (ClientPreferences.hideMoneySidebar()) {
+				hideEconomySidebarDisplay(client);
+			}
+		});
+	}
+
+	public static void setMoneySidebarHidden(boolean hidden) {
+		ClientPreferences.setHideMoneySidebar(hidden);
+		if (hidden) {
+			hideEconomySidebarDisplay(Minecraft.getInstance());
+		} else {
+			showEconomySidebarDisplay(Minecraft.getInstance());
+		}
+	}
+
+	public static void setRewardTipsHidden(boolean hidden) {
+		ClientPreferences.setHideRewardTips(hidden);
+	}
+
+	private static void hideEconomySidebarDisplay(Minecraft client) {
+		if (client == null || client.level == null) {
+			return;
+		}
+
+		Scoreboard scoreboard = client.level.getScoreboard();
+		Objective displayed = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
+		if (displayed != null && isEconomySidebarObjective(displayed.getName())) {
+			scoreboard.setDisplayObjective(DisplaySlot.SIDEBAR, null);
+		}
+	}
+
+	private static void showEconomySidebarDisplay(Minecraft client) {
+		if (client == null || client.player == null || client.level == null) {
+			return;
+		}
+
+		Scoreboard scoreboard = client.level.getScoreboard();
+		if (scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR) != null) {
+			return;
+		}
+
+		Objective objective = scoreboard.getObjective(economySidebarObjectiveName(client.player.getUUID()));
+		if (objective != null) {
+			scoreboard.setDisplayObjective(DisplaySlot.SIDEBAR, objective);
+		}
+	}
+
+	private static boolean isEconomySidebarObjective(String objectiveName) {
+		return objectiveName != null && objectiveName.startsWith(ECONOMY_SIDEBAR_PREFIX);
+	}
+
+	private static String economySidebarObjectiveName(UUID playerId) {
+		String compact = playerId.toString().replace("-", "");
+		return ECONOMY_SIDEBAR_PREFIX + compact.substring(0, 12);
+	}
+
+	private static boolean isRewardTip(Component message) {
+		return message != null
+			&& message.getContents() instanceof TranslatableContents contents
+			&& REWARD_TIP_KEYS.contains(contents.getKey());
+	}
+
+	private static void clearMomentCache() {
+		MOMENTS = List.of();
+		MOMENT_DRAFT = "";
 	}
 
 	private static void clearBoxHud() {
@@ -282,4 +545,3 @@ public class TeleportMenuClient implements ClientModInitializer {
 		}
 	}
 }
-
