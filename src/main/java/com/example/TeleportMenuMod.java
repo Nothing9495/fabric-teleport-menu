@@ -135,6 +135,10 @@ public class TeleportMenuMod implements ModInitializer {
 	private static final Map<UUID, Set<String>> PLAYER_REWARDED_EQUIPMENT = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> PLAYER_UI_PROTOCOLS = new ConcurrentHashMap<>();
 	private static final Set<String> DISABLED_ITEM_IDS = ConcurrentHashMap.newKeySet();
+	private static final Set<UUID> ECONOMY_SIDEBAR_HIDDEN = ConcurrentHashMap.newKeySet();
+	private static final Map<UUID, Integer> ECONOMY_SIDEBAR_LAST_SCORE = new ConcurrentHashMap<>();
+	private static final Set<UUID> ECONOMY_SIDEBAR_ASSERTED = ConcurrentHashMap.newKeySet();
+	private static final Set<UUID> ECONOMY_SIDEBAR_HIDDEN_SENT = ConcurrentHashMap.newKeySet();
 	private static final int STABLE_UI_PROTOCOL = 1;
 	private static final int UNKNOWN_UI_PROTOCOL = 0;
 	private static final boolean ECONOMY_MOD_LOADED = FabricLoader.getInstance().isModLoaded("economy");
@@ -213,6 +217,7 @@ public class TeleportMenuMod implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.RenameHomeRequestPayload.TYPE, TeleportMenuPayloads.RenameHomeRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.DisableItemRequestPayload.TYPE, TeleportMenuPayloads.DisableItemRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.EconomyAdminActionPayload.TYPE, TeleportMenuPayloads.EconomyAdminActionPayload.STREAM_CODEC);
+		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.EconomySidebarVisibilityPayload.TYPE, TeleportMenuPayloads.EconomySidebarVisibilityPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.CreateShopRequestPayload.TYPE, TeleportMenuPayloads.CreateShopRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.ExpandShopLimitRequestPayload.TYPE, TeleportMenuPayloads.ExpandShopLimitRequestPayload.STREAM_CODEC);
 		PayloadTypeRegistry.playC2S().register(TeleportMenuPayloads.DeleteShopRequestPayload.TYPE, TeleportMenuPayloads.DeleteShopRequestPayload.STREAM_CODEC);
@@ -262,6 +267,8 @@ public class TeleportMenuMod implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.DisableItemRequestPayload.TYPE, (payload, context) -> handleDisableItemRequest(context.player(), payload.itemId(), payload.disable()));
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.EconomyAdminActionPayload.TYPE, (payload, context) ->
 			handleEconomyAdminAction(context.player(), payload.targetId(), payload.action(), payload.amount()));
+		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.EconomySidebarVisibilityPayload.TYPE, (payload, context) ->
+			setEconomySidebarVisible(context.player().server, context.player().getUUID(), !payload.hidden()));
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.CreateShopRequestPayload.TYPE, (payload, context) -> handleCreateShop(context.player(), payload.name()));
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.ExpandShopLimitRequestPayload.TYPE, (payload, context) -> handleExpandShopLimit(context.player()));
 		ServerPlayNetworking.registerGlobalReceiver(TeleportMenuPayloads.DeleteShopRequestPayload.TYPE, (payload, context) -> handleDeleteShop(context.player(), payload.shopId()));
@@ -294,13 +301,21 @@ public class TeleportMenuMod implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register(TeleportMenuMod::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPING.register(TeleportMenuMod::onServerStopping);
 		ServerChunkEvents.CHUNK_LOAD.register((world, chunk) -> cleanupLegacyBoxShopDisplaysInChunk(world, chunk));
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> syncLocalizations(handler.player));
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			syncLocalizations(handler.player);
+			runEconomySidebarOnServerThread(server, () ->
+				applyEconomySidebarState(server, handler.player.getUUID()));
+		});
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			UUID playerId = handler.player.getUUID();
 			PLAYER_UI_PROTOCOLS.remove(playerId);
 			PLAYER_EQUIPMENT_COUNTS.remove(playerId);
 			PLAYER_REWARDED_EQUIPMENT.remove(playerId);
-			cleanupEconomySidebarObjective(server, playerId);
+			runEconomySidebarOnServerThread(server, () -> {
+				ECONOMY_SIDEBAR_LAST_SCORE.remove(playerId);
+				ECONOMY_SIDEBAR_ASSERTED.remove(playerId);
+				ECONOMY_SIDEBAR_HIDDEN_SENT.remove(playerId);
+			});
 		});
 		ServerTickEvents.END_SERVER_TICK.register(TeleportMenuMod::onServerTick);
 		LOGGER.info("Teleport Menu 2.3 initialized");
@@ -316,9 +331,6 @@ public class TeleportMenuMod implements ModInitializer {
 	}
 
 	private static void onServerStopping(MinecraftServer server) {
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			cleanupEconomySidebarObjective(server, player.getUUID());
-		}
 		savePersistentData(server);
 		ACTIVE_SERVER = null;
 		TERRITORY_SELECTIONS.clear();
@@ -326,6 +338,9 @@ public class TeleportMenuMod implements ModInitializer {
 		LAST_DENY_ACTIONBAR_TICK.clear();
 		PLAYER_EQUIPMENT_COUNTS.clear();
 		PLAYER_REWARDED_EQUIPMENT.clear();
+		ECONOMY_SIDEBAR_LAST_SCORE.clear();
+		ECONOMY_SIDEBAR_ASSERTED.clear();
+		ECONOMY_SIDEBAR_HIDDEN_SENT.clear();
 		PLAYER_SHOPS.clear();
 		BOX_SHOPS.clear();
 		BOX_SHOP_SHOP_IDS.clear();
@@ -363,6 +378,7 @@ public class TeleportMenuMod implements ModInitializer {
 		PLAYER_REWARDED_EQUIPMENT.clear();
 		MOMENTS.clear();
 		MOMENT_DRAFTS.clear();
+		ECONOMY_SIDEBAR_HIDDEN.clear();
 
 		Path file = dataFile(server);
 		if (!Files.exists(file)) {
